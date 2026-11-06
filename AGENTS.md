@@ -31,6 +31,10 @@ The webview page is a template string of `MarkdownPreview._html` with a Content 
 
 Messages: host → webview `markdown` (text, siblings), `reading` (kept voice / speed), `hostReply`; webview → host `ready`, `openLink`, `reading` (to keep), `translate`, `voices`, `speak`, `stopSpeaking`.
 
+## Icon
+
+`resources/icon.png` (256 px, the `icon` of package.json; the Marketplace takes no SVG) is made by `swift scripts/make-icon.swift` (macOS, AppKit draws the SVG) from `resources/icon-space.svg` — the icon of the universe page of gw with two stars moved, kept in the package as the source —: turned by -90°, white with a black outline (`ink` / `paper`), its drawn bounds filling a black square with rounded corners (with a margin; nothing is drawn outside it), the label TTS/STT MD in their bottom right corner (right edge at the outermost star, bottom level with the big star on the left). babylon-editor has the same picture with the label BABYLON.
+
 ## Ignored files
 
 `dist/`, `node_modules/`, `.vscode/` and `*.vsix` are gitignored (also macOS `.DS_Store` and the `._*` files exFAT volumes get).

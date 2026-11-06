@@ -72,7 +72,10 @@ src/
   markdown/                 # webview: MarkdownView (marked + DOMPurify + highlight.js), PreviewTranslation, ReadAloud, HostRequests
   utils/                    # createNonce, formatJson (+ minifyJson, stripJsonc)
   scss/                     # markdown.scss → compiled to dist/css/
-resources/                  # icon of the "Open Preview" title button (light / dark)
+resources/                  # icon of the "Open Preview" title button (light / dark); icon.png, the extension icon, made by
+                            # scripts/make-icon.swift from its source icon-space.svg (the icon of the universe page of gw,
+                            # kept in the package too) with the label TTS/STT MD — the picture of the babylon-editor icon
+scripts/                    # make-icon.swift (swift scripts/make-icon.swift, macOS)
 dist/                       # bundled output loaded by VS Code (git-ignored)
 ```
 

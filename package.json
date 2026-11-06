@@ -2,9 +2,10 @@
   "name": "tts-stt-md-aloud",
   "displayName": "TTS / STT MD Aloud",
   "description": "Markdown preview that translates the text and reads it aloud with system voices; a formatted view of JSON files",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "ninebits",
   "license": "MIT",
+  "icon": "resources/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/NineBitsLTD/tts-stt-md-aloud.git"
@@ -151,5 +152,6 @@
     "dompurify": "^3.4.17",
     "highlight.js": "^11.12.0",
     "marked": "^12.0.2"
-  }
+  },
+  "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"
 }
