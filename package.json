@@ -1,0 +1,155 @@
+{
+  "name": "tts-stt-md-aloud",
+  "displayName": "TTS / STT MD Aloud",
+  "description": "Markdown preview that translates the text and reads it aloud with system voices; a formatted view of JSON files",
+  "version": "0.1.0",
+  "publisher": "ninebits",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NineBitsLTD/tts-stt-md-aloud.git"
+  },
+  "homepage": "https://github.com/NineBitsLTD/tts-stt-md-aloud#readme",
+  "bugs": {
+    "url": "https://github.com/NineBitsLTD/tts-stt-md-aloud/issues"
+  },
+  "type": "module",
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "preview",
+    "text to speech",
+    "read aloud",
+    "translate",
+    "json"
+  ],
+  "activationEvents": [
+    "onFileSystem:json-formatted"
+  ],
+  "main": "dist/extension.cjs",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "tts-stt-md-aloud.preview",
+        "displayName": "Markdown Preview (TTS / STT MD Aloud)",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "tts-stt-md-aloud.openPreview",
+        "title": "Open Preview (Translate, Read Aloud)",
+        "category": "MD Aloud",
+        "icon": {
+          "light": "resources/open-preview-light.svg",
+          "dark": "resources/open-preview-dark.svg"
+        }
+      },
+      {
+        "command": "tts-stt-md-aloud.openRaw",
+        "title": "Open as Raw Markdown",
+        "category": "MD Aloud",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "tts-stt-md-aloud.openFormattedJson",
+        "title": "Open Formatted JSON",
+        "category": "MD Aloud",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "tts-stt-md-aloud.openRawJson",
+        "title": "Open as Raw JSON",
+        "category": "MD Aloud",
+        "icon": "$(file-code)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "tts-stt-md-aloud.openPreview",
+          "when": "resourceScheme == file && resourceExtname =~ /^\\.(md|markdown)$/i && !activeCustomEditorId && !isInDiffEditor",
+          "group": "navigation"
+        },
+        {
+          "command": "tts-stt-md-aloud.openRaw",
+          "when": "activeCustomEditorId == tts-stt-md-aloud.preview",
+          "group": "navigation"
+        },
+        {
+          "command": "tts-stt-md-aloud.openFormattedJson",
+          "when": "resourceScheme == file && resourceExtname =~ /^\\.jsonc?$/i && !activeCustomEditorId && !isInDiffEditor",
+          "group": "navigation"
+        },
+        {
+          "command": "tts-stt-md-aloud.openRawJson",
+          "when": "resourceScheme == json-formatted",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "tts-stt-md-aloud.openPreview",
+          "when": "resourceExtname =~ /^\\.(md|markdown)$/i"
+        },
+        {
+          "command": "tts-stt-md-aloud.openRaw",
+          "when": "activeCustomEditorId == tts-stt-md-aloud.preview"
+        },
+        {
+          "command": "tts-stt-md-aloud.openFormattedJson",
+          "when": "resourceExtname =~ /^\\.jsonc?$/i"
+        },
+        {
+          "command": "tts-stt-md-aloud.openRawJson",
+          "when": "resourceScheme == json-formatted"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "pack": "vsce package --no-dependencies",
+    "clean": "rm -rf dist",
+    "clean:css-temp": "rm -f src/scss/*.css*",
+    "copy:codicons": "mkdir -p dist/codicons && cp node_modules/@vscode/codicons/dist/codicon.css node_modules/@vscode/codicons/dist/codicon.ttf dist/codicons/",
+    "compile:sass": "sass src/scss:src/scss",
+    "build:js": "esbuild src/extension.js --bundle --minify --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs",
+    "build:js-webview": "esbuild src/markdown.js --bundle --minify --outdir=dist/js",
+    "build:css": "npm run compile:sass && esbuild src/scss/*.css --bundle --minify --outdir=dist/css --loader:.css=css && npm run clean:css-temp",
+    "build": "npm run clean && npm run build:js && npm run build:js-webview && npm run build:css && npm run copy:codicons",
+    "watch:js": "esbuild src/extension.js --bundle --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs --watch",
+    "watch:js-webview": "esbuild src/markdown.js --bundle --outdir=dist/js --watch",
+    "watch:css": "sass --watch --no-source-map src/scss:dist/css",
+    "watch": "npm run build && concurrently 'npm:watch:*'"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/vscode": "^1.107.0",
+    "@vscode/vsce": "^4.0.0",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.27.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.0.0",
+    "sass": "^1.96.0"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.44",
+    "dompurify": "^3.4.17",
+    "highlight.js": "^11.12.0",
+    "marked": "^12.0.2"
+  }
+}
