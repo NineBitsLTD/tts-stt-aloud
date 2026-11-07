@@ -1,8 +1,8 @@
 {
   "name": "tts-stt-md-aloud",
   "displayName": "TTS / STT MD Aloud",
-  "description": "Markdown preview that translates the text and reads it aloud with system voices; a formatted view of JSON files",
-  "version": "1.0.0",
+  "description": "Markdown preview that translates the text and reads it aloud; text to speech settings for all of VS Code in the side bar; a formatted view of JSON files",
+  "version": "1.1.0",
   "publisher": "ninebits",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -25,7 +25,11 @@
     "markdown",
     "preview",
     "text to speech",
+    "speech to text",
+    "tts",
+    "stt",
     "read aloud",
+    "voice",
     "translate",
     "json"
   ],
@@ -49,6 +53,24 @@
         "priority": "option"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tts-stt-md-aloud",
+          "title": "TTS / STT",
+          "icon": "resources/speaker.svg"
+        }
+      ]
+    },
+    "views": {
+      "tts-stt-md-aloud": [
+        {
+          "type": "webview",
+          "id": "tts-stt-md-aloud.speech",
+          "name": "Speech"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "tts-stt-md-aloud.openPreview",
@@ -76,6 +98,21 @@
         "title": "Open as Raw JSON",
         "category": "MD Aloud",
         "icon": "$(file-code)"
+      },
+      {
+        "command": "tts-stt-md-aloud.speak",
+        "title": "Speak Text",
+        "category": "MD Aloud"
+      },
+      {
+        "command": "tts-stt-md-aloud.stopSpeaking",
+        "title": "Stop Speaking",
+        "category": "MD Aloud"
+      },
+      {
+        "command": "tts-stt-md-aloud.voices",
+        "title": "Voices Offered to Extensions",
+        "category": "MD Aloud"
       }
     ],
     "menus": {
@@ -117,8 +154,164 @@
         {
           "command": "tts-stt-md-aloud.openRawJson",
           "when": "resourceScheme == json-formatted"
+        },
+        {
+          "command": "tts-stt-md-aloud.speak",
+          "when": "false"
+        },
+        {
+          "command": "tts-stt-md-aloud.stopSpeaking",
+          "when": "false"
+        },
+        {
+          "command": "tts-stt-md-aloud.voices",
+          "when": "false"
         }
       ]
+    },
+    "configuration": {
+      "title": "TTS / STT",
+      "properties": {
+        "ttsSttMdAloud.tts.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "order": 1,
+          "description": "Text to speech: reading aloud in the Markdown preview and the speech asked for by other extensions."
+        },
+        "ttsSttMdAloud.tts.volume": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 100,
+          "scope": "application",
+          "order": 2,
+          "description": "Volume of the speech, in % of the volume set on the computer."
+        },
+        "ttsSttMdAloud.tts.rate": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.5,
+          "maximum": 2,
+          "scope": "application",
+          "order": 3,
+          "description": "Speed of the speech (1 is the normal speed)."
+        },
+        "ttsSttMdAloud.tts.driver": {
+          "type": "string",
+          "default": "system",
+          "scope": "application",
+          "order": 4,
+          "markdownDescription": "Driver of the speech: `system`, a driver added to `#ttsSttMdAloud.tts.drivers#`."
+        },
+        "ttsSttMdAloud.tts.drivers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "application",
+          "order": 5,
+          "markdownDescription": "Drivers offered besides System: `piper`, `silero`, `external:<server name>`."
+        },
+        "ttsSttMdAloud.tts.servers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "url"
+            ]
+          },
+          "default": [],
+          "scope": "application",
+          "order": 6,
+          "description": "External TTS servers (their keys are kept in the secret storage of VS Code)."
+        },
+        "ttsSttMdAloud.tts.voice": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "order": 7,
+          "description": "The voice chosen in the side bar (the voice test)."
+        },
+        "ttsSttMdAloud.tts.voices": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {},
+          "scope": "application",
+          "order": 8,
+          "description": "Checked voices by driver: picked automatically for reading aloud and offered to other extensions."
+        },
+        "ttsSttMdAloud.stt.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "order": 11,
+          "description": "Speech to text (planned); while it is on, the side bar shows the level of the microphone."
+        },
+        "ttsSttMdAloud.stt.volume": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "maximum": 200,
+          "scope": "application",
+          "order": 12,
+          "description": "Gain of the microphone signal, in % (100 is the signal as recorded)."
+        },
+        "ttsSttMdAloud.stt.driver": {
+          "type": "string",
+          "default": "system",
+          "scope": "application",
+          "order": 13,
+          "markdownDescription": "Driver of speech recognition: `system`, a driver added to `#ttsSttMdAloud.stt.drivers#`."
+        },
+        "ttsSttMdAloud.stt.drivers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "application",
+          "order": 14,
+          "markdownDescription": "Drivers offered besides System: `whisper`, `external:<server name>`."
+        },
+        "ttsSttMdAloud.stt.servers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "url"
+            ]
+          },
+          "default": [],
+          "scope": "application",
+          "order": 15,
+          "description": "External STT servers (their keys are kept in the secret storage of VS Code)."
+        }
+      }
     }
   },
   "scripts": {
@@ -129,11 +322,11 @@
     "copy:codicons": "mkdir -p dist/codicons && cp node_modules/@vscode/codicons/dist/codicon.css node_modules/@vscode/codicons/dist/codicon.ttf dist/codicons/",
     "compile:sass": "sass src/scss:src/scss",
     "build:js": "esbuild src/extension.js --bundle --minify --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs",
-    "build:js-webview": "esbuild src/markdown.js --bundle --minify --outdir=dist/js",
+    "build:js-webview": "esbuild src/markdown.js src/speech.js --bundle --minify --outdir=dist/js",
     "build:css": "npm run compile:sass && esbuild src/scss/*.css --bundle --minify --outdir=dist/css --loader:.css=css && npm run clean:css-temp",
     "build": "npm run clean && npm run build:js && npm run build:js-webview && npm run build:css && npm run copy:codicons",
     "watch:js": "esbuild src/extension.js --bundle --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs --watch",
-    "watch:js-webview": "esbuild src/markdown.js --bundle --outdir=dist/js --watch",
+    "watch:js-webview": "esbuild src/markdown.js src/speech.js --bundle --outdir=dist/js --watch",
     "watch:css": "sass --watch --no-source-map src/scss:dist/css",
     "watch": "npm run build && concurrently 'npm:watch:*'"
   },

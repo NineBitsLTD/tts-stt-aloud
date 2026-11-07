@@ -1,7 +1,18 @@
+import { pickVoice, speaksLanguage } from '../utils/pickVoice';
 import { guessLanguage } from './PreviewTranslation';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
-/** @typedef {{ name: string, lang: string, score?: number }} Voice score: higher is better */
+/** @typedef {import('../utils/pickVoice').Voice} Voice */
+/** @typedef {{ voice?: string, rate: number, lang?: string, volume?: number }} PhraseOptions */
+/**
+ * @typedef {object} ReadingSettings
+ * @property {string} voice the voice of the preview ('' : Auto)
+ * @property {number} rate the speed of the speech settings
+ * @property {boolean} enabled whether text to speech is on
+ * @property {number} volume % of the volume of the computer
+ * @property {string} driver the driver of the speech settings
+ * @property {string[]} checked the checked voices of the driver (Auto picks them first)
+ */
 
 /** Elements read as parts of the text. */
 const BLOCKS = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,dt,dd,td,th,figcaption,caption';
@@ -31,7 +42,7 @@ function phrasesOf(text) {
 }
 
 /**
- * The voices of the webview (Web Speech API).
+ * The voices of the webview (Web Speech API), when the driver of the speech settings has none.
  */
 class WebSpeech {
 
@@ -54,10 +65,10 @@ class WebSpeech {
 
     /**
      * @param {string} text
-     * @param {{ voice?: string, rate: number }} options
-     * @returns {Promise<void>} when it is spoken or stopped
+     * @param {PhraseOptions} options
+     * @returns {Promise<boolean>} true when spoken (or it failed), false when stopped
      */
-    speak(text, { voice, rate }) {
+    speak(text, { voice, rate, volume = 100 }) {
         return new Promise((resolve) => {
             const utterance = new SpeechSynthesisUtterance(text);
             const chosen = speechSynthesis.getVoices().find(candidate => candidate.name === voice);
@@ -66,8 +77,9 @@ class WebSpeech {
                 utterance.lang = chosen.lang;
             }
             utterance.rate = rate;
-            utterance.onend = () => resolve();
-            utterance.onerror = () => resolve();
+            utterance.volume = Math.max(0, Math.min(1, volume / 100));
+            utterance.onend = () => resolve(true);
+            utterance.onerror = event => resolve(event.error !== 'interrupted' && event.error !== 'canceled');
             speechSynthesis.speak(utterance);
         });
     }
@@ -78,7 +90,8 @@ class WebSpeech {
 }
 
 /**
- * The voice of the operating system, through the host (`SystemSpeech`).
+ * The driver of the speech settings, through the host (`TextToSpeech`): its volume, the level
+ * meter of the side bar, the phrase to come rendered ahead.
  */
 class HostSpeech {
 
@@ -98,11 +111,12 @@ class HostSpeech {
 
     /**
      * @param {string} text
-     * @param {{ voice?: string, rate: number, lang?: string }} options
-     * @returns {Promise<void>}
+     * @param {PhraseOptions & { next?: PhraseOptions & { text: string } }} options
+     * @returns {Promise<boolean>} true when spoken to the end, false when stopped (by the host too:
+     *   another speech began, the speech was turned off)
      */
-    async speak(text, options) {
-        await this._host.request('speak', { text, options });
+    speak(text, options) {
+        return this._host.request('speak', { text, options });
     }
 
     stop() {
@@ -114,7 +128,9 @@ class HostSpeech {
  * Reading the preview aloud as in the claude-ai preview: the text shown (in its translation) phrase
  * by phrase — blocks split into sentences, code blocks skipped —, the block being read highlighted
  * and scrolled to; Pause / resume, a phrase back or on, the time read and, before, an estimate of
- * the time it takes. The voices of the webview are used, those of the system when it has none.
+ * the time it takes. It speaks with the driver of the speech settings through the host (its
+ * voices, volume and speed; Auto picks the checked voices first), with the voices of the webview
+ * when the driver has none; hidden while text to speech is off.
  */
 export class ReadAloud {
 
@@ -140,7 +156,10 @@ export class ReadAloud {
         this._engine = null;
         /** @type {Voice[]} */
         this._voices = [];
-        this._settings = { voice: '', rate: 1 };
+        /** @type {ReadingSettings} */
+        this._settings = { voice: '', rate: 1, enabled: true, volume: 100, driver: 'system', checked: [] };
+        /** the driver whose voices are loaded */
+        this._driver = 'system';
         /** the language of the shown text ('' : the document's own) */
         this._lang = '';
         /** @type {{ phrases: { text: string, element: HTMLElement | null }[], index: number, paused: boolean, run: number, lit: HTMLElement | null, spent: number, since: number | null } | null} */
@@ -157,12 +176,28 @@ export class ReadAloud {
     }
 
     /**
-     * @param {{ voice?: string, rate?: number }} settings kept by the host
+     * @param {Partial<ReadingSettings>} settings of the host: the voice of the preview, the speech settings
      */
     setSettings(settings) {
-        this._settings = { voice: settings?.voice ?? '', rate: Number(settings?.rate) || 1 };
-        this._rateSelect.value = String(this._settings.rate);
-        this._ready.then(() => this._fillVoices());
+        this._settings = {
+            voice: settings?.voice ?? '',
+            rate: Number(settings?.rate) || 1,
+            enabled: settings?.enabled !== false,
+            volume: Number.isFinite(Number(settings?.volume)) ? Number(settings.volume) : 100,
+            driver: settings?.driver ?? 'system',
+            checked: Array.isArray(settings?.checked) ? settings.checked : [],
+        };
+        this._showRate();
+        if (!this._settings.enabled) this.stop();
+        if (this._settings.driver !== this._driver) {
+            // Another driver, other voices
+            this.stop();
+            this._ready = this._loadVoices();
+        }
+        this._ready.then(() => {
+            this._fillVoices();
+            this._sync();
+        });
     }
 
     /**
@@ -186,16 +221,32 @@ export class ReadAloud {
     }
 
     async _loadVoices() {
-        const web = await WebSpeech.voices();
-        if (web.length) {
-            this._engine = new WebSpeech();
-            this._voices = web;
+        this._driver = this._settings.driver;
+        const hosted = new HostSpeech(this._host);
+        const voices = await hosted.voices().catch(() => []);
+        if (voices.length) {
+            this._engine = hosted;
+            this._voices = voices;
         } else {
-            this._engine = new HostSpeech(this._host);
-            this._voices = await this._engine.voices().catch(() => []);
+            const web = await WebSpeech.voices();
+            this._engine = web.length ? new WebSpeech() : null;
+            this._voices = web;
         }
         this._fillVoices();
         this._sync();
+    }
+
+    /** The speed select shows the speed of the settings, one between its steps too. */
+    _showRate() {
+        const value = String(this._settings.rate);
+        this._rateSelect.querySelectorAll('option[data-custom]').forEach(option => option.remove());
+        const options = [...this._rateSelect.options];
+        if (!options.some(option => option.value === value)) {
+            const option = new Option(`${value}×`, value);
+            option.dataset.custom = '';
+            this._rateSelect.insertBefore(option, options.find(item => Number(item.value) > this._settings.rate) ?? null);
+        }
+        this._rateSelect.value = value;
     }
 
     /**
@@ -207,28 +258,39 @@ export class ReadAloud {
 
     /**
      * @param {string} lang
-     * @returns {string} the best voice of a language ('' : none, the system picks)
+     * @returns {string} the best voice of a language, a checked one first ('' : none, the system picks)
      */
     _voiceFor(lang) {
-        const ofLang = this._voices.filter(voice => voice.lang.toLowerCase().replace('_', '-').startsWith(lang));
-        return ofLang.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name))[0]?.name ?? '';
+        return pickVoice(this._voices, lang, this._settings.checked);
+    }
+
+    /**
+     * @param {string} text a phrase
+     * @returns {PhraseOptions} how it is read: Auto, the voice of its language
+     */
+    _phraseOptions(text) {
+        const lang = this._lang || guessLanguage(text);
+        return { voice: this._settings.voice || this._voiceFor(lang), rate: this._settings.rate, lang, volume: this._settings.volume };
     }
 
     /**
      * The voice select: Auto (each phrase with the best voice of its language, named for the
-     * language of the text) or a chosen voice; the voices of that language first.
+     * language of the text) or a chosen voice; the voices of that language first, the checked ones
+     * among them first.
      */
     _fillVoices() {
         const lang = this._textLang();
-        const ofLang = voice => voice.lang.toLowerCase().replace('_', '-').startsWith(lang);
-        const sorted = [...this._voices].sort((a, b) => Number(ofLang(b)) - Number(ofLang(a)) || a.name.localeCompare(b.name));
+        const ofLang = voice => speaksLanguage(voice, lang);
+        const checked = new Set(this._settings.checked);
+        const sorted = [...this._voices].sort((a, b) => Number(ofLang(b)) - Number(ofLang(a))
+            || Number(checked.has(b.name)) - Number(checked.has(a.name)) || a.name.localeCompare(b.name));
         const automatic = this._voiceFor(lang);
         this._voiceSelect.replaceChildren(
             new Option(automatic ? `Auto (${automatic})` : 'Auto', ''),
             ...sorted.map(voice => new Option(voice.lang ? `${voice.name} (${voice.lang})` : voice.name, voice.name)),
         );
         this._voiceSelect.value = this._voices.some(voice => voice.name === this._settings.voice) ? this._settings.voice : '';
-        this._voiceSelect.hidden = !this._voices.length;
+        this._voiceSelect.hidden = !this._voices.length || !this._settings.enabled;
     }
 
     /**
@@ -272,6 +334,7 @@ export class ReadAloud {
     }
 
     _start() {
+        if (!this._settings.enabled) return;
         const phrases = this._blocks().flatMap(block => phrasesOf(block.text).map(text => ({ text, element: block.element })));
         if (!phrases.length || !this._engine) return;
         this._reading = { phrases, index: 0, paused: false, run: 0, lit: null, spent: 0, since: Date.now() };
@@ -295,9 +358,12 @@ export class ReadAloud {
             this._sync();
             // Auto: each phrase in the voice of its own language (an English name in a Russian text)
             const text = reading.phrases[index].text;
-            const lang = this._lang || guessLanguage(text);
-            await this._engine.speak(text, { voice: this._settings.voice || this._voiceFor(lang), rate: this._settings.rate, lang });
+            const next = reading.phrases[index + 1]?.text;
+            const finished = await this._engine.speak(text, { ...this._phraseOptions(text), next: next ? { text: next, ...this._phraseOptions(next) } : undefined })
+                .catch(() => false);
             if (run !== this._run) return;
+            // Stopped by someone else (another speech began, the speech was turned off)
+            if (!finished) break;
         }
         this.stop();
     }
@@ -349,5 +415,7 @@ export class ReadAloud {
         this._speakButton.querySelector('.md-head__time').textContent = estimate >= 1000 ? `~${clock(estimate)}` : '';
         this._speakButton.title = reading ? 'Stop reading' : this._lang ? 'Read aloud (the translation)' : 'Read aloud';
         this._speakButton.disabled = !this._engine || (!reading && !this._voices.length);
+        this._speakButton.hidden = !this._settings.enabled;
+        this._rateSelect.hidden = !this._settings.enabled;
     }
 }

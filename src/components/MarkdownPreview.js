@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import { createNonce } from '../utils/createNonce';
-import { SystemSpeech } from './SystemSpeech';
+
+/** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
+/** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
 
 export const MarkdownPreviewID = 'tts-stt-md-aloud.preview';
 
-/** Where the voice and the speed of reading aloud are kept. */
+/** Where the voice of the preview is kept (the speed is `ttsSttMdAloud.tts.rate` of the settings). */
 const READING_KEY = 'ttsSttMdAloud.reading';
 
 /** Languages the preview is translated into, by their language tags. */
@@ -31,7 +33,8 @@ function isMarkdown(uri) {
  * A preview of Markdown files (`tts-stt-md-aloud.preview`, a custom text editor that is not
  * the default: `.md` files open as text). The webview (`src/markdown.js`) renders the text live,
  * translates the shown text and reads it aloud; the host opens links, translates with a language
- * model of VS Code and speaks with the voice of the system when the webview has no voices.
+ * model of VS Code and speaks through `TextToSpeech` (the driver, volume and speed of the speech
+ * settings; the webview speaks with its own voices only when the driver has none).
  * @implements {vscode.CustomTextEditorProvider}
  */
 export class MarkdownPreview {
@@ -41,12 +44,16 @@ export class MarkdownPreview {
 
     /**
      * @param {vscode.ExtensionContext} context
+     * @param {SpeechSettings} settings
+     * @param {TextToSpeech} tts
      */
-    constructor(context) {
+    constructor(context, settings, tts) {
         this._context = context;
-        this._speech = new SystemSpeech();
-        /** @type {vscode.WebviewPanel | null} the panel speaking with the system voice */
-        this._speaking = null;
+        this._settings = settings;
+        this._tts = tts;
+        /** @type {Set<vscode.WebviewPanel>} the open previews */
+        this._panels = new Set();
+        this._keepRateInSettings();
     }
 
     /**
@@ -57,8 +64,37 @@ export class MarkdownPreview {
             vscode.window.registerCustomEditorProvider(MarkdownPreviewID, this, { webviewOptions: { retainContextWhenHidden: true } }),
             vscode.commands.registerCommand(MarkdownPreview.openCommand, uri => this.open(uri)),
             vscode.commands.registerCommand(MarkdownPreview.rawCommand, uri => this.openRaw(uri)),
-            new vscode.Disposable(() => this._speech.stop()),
+            this._settings.onDidChange(() => this._panels.forEach(panel => this._postReading(panel))),
         );
+    }
+
+    /**
+     * Version 1.0 kept the speed of reading with the voice: it moves to the settings of VS Code.
+     */
+    _keepRateInSettings() {
+        const kept = this._context.globalState.get(READING_KEY);
+        if (!kept || !('rate' in kept)) return;
+        if (Number(kept.rate) > 0 && Number(kept.rate) !== 1 && this._settings.isDefault('tts.rate')) this._settings.update('tts', 'rate', Number(kept.rate));
+        this._context.globalState.update(READING_KEY, { voice: kept.voice ?? '' });
+    }
+
+    /**
+     * The reading settings of a preview: its voice and the speech settings it follows.
+     * @param {vscode.WebviewPanel} panel
+     */
+    _postReading(panel) {
+        const { tts } = this._settings.get();
+        panel.webview.postMessage({
+            type: 'reading',
+            settings: {
+                voice: this._context.globalState.get(READING_KEY)?.voice ?? '',
+                rate: tts.rate,
+                enabled: tts.enabled,
+                volume: tts.volume,
+                driver: tts.driver,
+                checked: tts.voices[tts.driver] ?? [],
+            },
+        });
     }
 
     /**
@@ -129,6 +165,7 @@ export class MarkdownPreview {
                 siblings: await MarkdownPreview._siblings(document.uri),
             });
         };
+        this._panels.add(panel);
         const subscriptions = [
             vscode.workspace.onDidChangeTextDocument((event) => {
                 if (event.document !== document) return;
@@ -140,7 +177,8 @@ export class MarkdownPreview {
         panel.onDidDispose(() => {
             clearTimeout(timer);
             subscriptions.forEach(subscription => subscription.dispose());
-            if (this._speaking === panel) this._speech.stop();
+            this._panels.delete(panel);
+            this._tts.stop(panel);
         });
     }
 
@@ -155,14 +193,16 @@ export class MarkdownPreview {
         const reply = result => panel.webview.postMessage({ type: 'hostReply', requestId: message.requestId, result });
         switch (message?.type) {
             case 'ready':
-                panel.webview.postMessage({ type: 'reading', settings: this._context.globalState.get(READING_KEY) ?? {} });
+                this._postReading(panel);
                 await send();
                 break;
             case 'openLink':
                 await this._openLink(document.uri, String(message.href ?? ''));
                 break;
             case 'reading':
-                await this._context.globalState.update(READING_KEY, message.settings);
+                await this._context.globalState.update(READING_KEY, { voice: String(message.settings?.voice ?? '') });
+                const rate = Number(message.settings?.rate);
+                if (rate > 0 && rate !== this._settings.get().tts.rate) await this._settings.update('tts', 'rate', rate);
                 break;
             case 'translate':
                 try {
@@ -172,15 +212,18 @@ export class MarkdownPreview {
                 }
                 break;
             case 'voices':
-                reply(await this._speech.voices());
+                reply(await this._tts.voices());
                 break;
             case 'speak':
-                this._speaking = panel;
-                await this._speech.speak(String(message.text ?? ''), message.options ?? {});
-                reply(true);
+                try {
+                    reply(await this._tts.speak(String(message.text ?? ''), message.options ?? {}, panel));
+                } catch (error) {
+                    vscode.window.showWarningMessage(String(error?.message || error));
+                    reply(false);
+                }
                 break;
             case 'stopSpeaking':
-                if (this._speaking === panel) this._speech.stop();
+                this._tts.stop(panel);
                 break;
         }
     }
