@@ -70,9 +70,9 @@ export class TextToSpeech {
         const { driver } = this._settings.get().tts;
         if (driver === 'system') return { id: driver, available: true, message: '' };
         const name = this._settings.driverName('tts', driver);
-        const message = driver.startsWith('external:')
-            ? `${name}: speaking through external servers is not supported yet.`
-            : `${name} is not installed yet: its models and tools come in a later version.`;
+        const message = driver.startsWith('external:') ? `${name}: speaking through external servers is not supported yet.`
+            : driver === 'piper' ? 'Piper cannot speak yet: its engine, sherpa-onnx, comes in a later version (voice models can be added already, under Add driver).'
+                : `${name} is not installed yet: its models and tools come in a later version.`;
         return { id: driver, available: false, message };
     }
 

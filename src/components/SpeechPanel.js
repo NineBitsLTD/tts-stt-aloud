@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
 import { createNonce } from '../utils/createNonce';
-import { MicMonitor } from './MicMonitor';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
-
-/** STT recognizes nothing yet: what the section says of it. */
-const STT_NOTE = 'Recognition (dictation) is planned: for now the settings are kept and the level of the microphone is shown.';
+/** @typedef {import('./SpeechToText').SpeechToText} SpeechToText */
+/** @typedef {import('./PiperModels').PiperModels} PiperModels */
 
 /**
  * The side bar of the speech settings (the speaker of the activity bar, the webview view
  * `tts-stt-md-aloud.speech`; `src/speech.js`): TTS — on / off, volume, speed, the level of the
  * sound, the driver, the drivers offered (Piper, Silero, external servers), the voices checked and
- * the voice tested —, STT — on / off, the gain and the level of the microphone, its drivers. The
+ * the voice tested —, STT — on / off (whether other extensions may use the microphone), the gain
+ * and the level of the microphone, its drivers, the test of the microphone (recorded, played); the
+ * voice models of Piper while it is offered (`PiperModels`: chosen on the disk or downloaded, prepared for sherpa-onnx). The
  * settings are those of VS Code (`SpeechSettings`), so a change made elsewhere shows here.
  * @implements {vscode.WebviewViewProvider}
  */
@@ -24,12 +24,15 @@ export class SpeechPanel {
      * @param {vscode.ExtensionContext} context
      * @param {SpeechSettings} settings
      * @param {TextToSpeech} tts
+     * @param {SpeechToText} stt
+     * @param {PiperModels} piper
      */
-    constructor(context, settings, tts) {
+    constructor(context, settings, tts, stt, piper) {
         this._context = context;
         this._settings = settings;
         this._tts = tts;
-        this._mic = new MicMonitor();
+        this._stt = stt;
+        this._piper = piper;
         /** @type {vscode.WebviewView | null} */
         this._view = null;
         /** the TTS driver whose voices the view shows */
@@ -44,7 +47,9 @@ export class SpeechPanel {
             vscode.window.registerWebviewViewProvider(SpeechPanel.viewId, this),
             this._settings.onDidChange(() => this._onSettings()),
             this._tts.onLevels(({ levels, interval }) => this._post({ type: 'level', section: 'tts', levels, interval })),
-            new vscode.Disposable(() => this._mic.stop()),
+            this._stt.onLevel(level => this._post({ type: 'level', section: 'stt', ...level })),
+            this._stt.onState(({ state, owner, limits }) => this._post({ type: 'micState', state, test: owner === 'test', limits })),
+            this._piper.onDidChange(() => this._postState()),
         );
     }
 
@@ -55,15 +60,12 @@ export class SpeechPanel {
         this._view = view;
         view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this._context.extensionUri, 'dist')] };
         view.webview.html = this._html(view.webview);
-        const subscriptions = [
-            view.webview.onDidReceiveMessage(message => this._onMessage(message)),
-            view.onDidChangeVisibility(() => this._syncMic()),
-        ];
+        const subscription = view.webview.onDidReceiveMessage(message => this._onMessage(message));
         view.onDidDispose(() => {
-            subscriptions.forEach(subscription => subscription.dispose());
+            subscription.dispose();
             this._tts.stop('test');
+            this._stt.stopTest();
             this._view = null;
-            this._syncMic();
         });
     }
 
@@ -75,9 +77,8 @@ export class SpeechPanel {
         const section = message?.section === 'stt' ? 'stt' : 'tts';
         switch (message?.type) {
             case 'ready':
-                this._postState();
+                await this._postState();
                 await this._postVoices(true);
-                this._syncMic();
                 break;
             case 'update':
                 await this._settings.update(section, String(message.key), message.value);
@@ -96,13 +97,34 @@ export class SpeechPanel {
                 break;
             case 'test':
                 try {
-                    reply(await this._tts.test(String(message.voice ?? '')));
+                    reply(section === 'stt' ? await this._testMicrophone() : await this._tts.test(String(message.voice ?? '')));
                 } catch (error) {
                     reply(undefined, String(error?.message || error));
                 }
                 break;
             case 'stopTest':
-                this._tts.stop('test');
+                if (section === 'stt') this._stt.stopTest();
+                else this._tts.stop('test');
+                break;
+            case 'browseModel':
+                reply(await this._piper.browse());
+                break;
+            case 'modelCatalog':
+                try {
+                    reply(await this._piper.catalog());
+                } catch (error) {
+                    reply(undefined, String(error?.message || error));
+                }
+                break;
+            case 'addModel':
+                try {
+                    reply(message.key ? await this._piper.download(String(message.key)) : await this._piper.addFile(String(message.path ?? '')));
+                } catch (error) {
+                    reply(String(error?.message || error));
+                }
+                break;
+            case 'removeModel':
+                await this._piper.remove(String(message.path ?? ''));
                 break;
         }
     }
@@ -122,16 +144,31 @@ export class SpeechPanel {
     _onSettings() {
         this._postState();
         if (this._settings.get().tts.driver !== this._voicesOf) this._postVoices(false);
-        this._syncMic();
     }
 
-    _postState() {
+    /**
+     * Records speech and plays it (the speech being spoken stops: it would be recorded).
+     * @returns {Promise<{ heard: boolean, duration: number, ended: string, text: string | null }>}
+     *   text: null — recognition is not connected yet
+     */
+    async _testMicrophone() {
+        this._tts.stop();
+        const { wav, duration, ended } = await this._stt.test(this._settings.get().tts.volume / 100);
+        return { heard: !!wav, duration, ended, text: null };
+    }
+
+    async _postState() {
         const settings = this._settings.get();
+        const piper = await this._piper.list();
         this._post({
             type: 'state',
             settings,
             drivers: { tts: this._settings.drivers('tts'), stt: this._settings.drivers('stt') },
-            notes: { tts: this._tts.driver().message, stt: STT_NOTE },
+            models: { tts: { piper: { models: piper, pending: [...this._piper.pending].map(([name, action]) => ({ name, action })) } } },
+            notes: {
+                tts: this._tts.driver().message,
+                stt: settings.stt.enabled ? 'Other extensions may use the microphone.' : 'Other extensions may not use the microphone (the test works anyway).',
+            },
         });
     }
 
@@ -143,21 +180,6 @@ export class SpeechPanel {
         this._voicesOf = driver;
         const voices = await this._tts.voices({ refresh });
         this._post({ type: 'voices', driver, voices });
-    }
-
-    /** The microphone is recorded while STT is on and the view is shown. */
-    _syncMic() {
-        if (!this._view?.visible || !this._settings.get().stt.enabled) {
-            if (this._mic.active) this._post({ type: 'level', section: 'stt', level: 0 });
-            this._mic.stop();
-            return;
-        }
-        this._post({ type: 'status', section: 'stt', message: '' });
-        this._mic.start({
-            onLevel: level => this._post({ type: 'level', section: 'stt', level }),
-            onError: message => this._post({ type: 'status', section: 'stt', message }),
-            gain: () => this._settings.get().stt.volume / 100,
-        });
     }
 
     /**

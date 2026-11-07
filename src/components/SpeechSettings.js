@@ -30,9 +30,19 @@ const RANGES = {
  * @property {string} driver the driver in use (`system` when the chosen one is not offered)
  * @property {string[]} drivers drivers offered besides System
  * @property {SpeechServer[]} servers external servers
- * @typedef {SectionSettings & { rate: number, voice: string, voices: Record<string, string[]> }} TtsSettings
+ * @typedef {SectionSettings & { rate: number, voice: string, voices: Record<string, string[]>, models: Record<string, string[]> }} TtsSettings
+ *   voices: the checked voices by driver; models: the files of the voice models by driver (Piper: `.onnx`)
  * @typedef {{ tts: TtsSettings, stt: SectionSettings }} AllSpeechSettings
  */
+
+/**
+ * @param {unknown} value
+ * @returns {Record<string, string[]>} lists of strings by key (what is not one is left out)
+ */
+function listsOf(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return Object.fromEntries(Object.entries(value).filter(([, items]) => Array.isArray(items)).map(([key, items]) => [key, items.map(String)]));
+}
 
 /**
  * @param {unknown} value
@@ -78,15 +88,13 @@ export class SpeechSettings {
      */
     get() {
         const config = vscode.workspace.getConfiguration(CONFIG);
-        const voices = config.get('tts.voices');
         return {
             tts: {
                 ...this._section('tts', config),
                 rate: clamp(config.get('tts.rate'), 0.5, 2, 1),
                 voice: String(config.get('tts.voice') ?? ''),
-                voices: voices && typeof voices === 'object' && !Array.isArray(voices)
-                    ? Object.fromEntries(Object.entries(voices).filter(([, names]) => Array.isArray(names)).map(([id, names]) => [id, names.map(String)]))
-                    : {},
+                voices: listsOf(config.get('tts.voices')),
+                models: listsOf(config.get('tts.models')),
             },
             stt: this._section('stt', config),
         };
@@ -209,6 +217,29 @@ export class SpeechSettings {
     }
 
     /**
+     * Adds the file of a voice model of a TTS driver (nothing when it is listed already).
+     * @param {string} driver
+     * @param {string} path
+     */
+    async addModel(driver, path) {
+        const models = this.get().tts.models;
+        const paths = models[driver] ?? [];
+        if (!paths.includes(path)) await this._set('tts.models', { ...models, [driver]: [...paths, path] });
+    }
+
+    /**
+     * Removes the file of a voice model of a TTS driver from its list (the file stays).
+     * @param {string} driver
+     * @param {string} path
+     */
+    async removeModel(driver, path) {
+        const models = this.get().tts.models;
+        const paths = (models[driver] ?? []).filter(item => item !== path);
+        const others = SpeechSettings._without(models, driver);
+        await this._set('tts.models', paths.length ? { ...others, [driver]: paths } : others);
+    }
+
+    /**
      * @param {string} key under `ttsSttMdAloud.`
      * @returns {boolean} whether the user settings have no value of their own for it
      */
@@ -247,9 +278,9 @@ export class SpeechSettings {
     }
 
     /**
-     * @param {Record<string, string[]>} voices
+     * @param {Record<string, string[]>} voices lists by driver (checked voices, models)
      * @param {string} driver
-     * @returns {Record<string, string[]>} the checked voices without those of a driver
+     * @returns {Record<string, string[]>} the lists without that of a driver
      */
     static _without(voices, driver) {
         return Object.fromEntries(Object.entries(voices).filter(([id]) => id !== driver));

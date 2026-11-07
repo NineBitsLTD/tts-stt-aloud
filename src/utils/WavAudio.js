@@ -55,6 +55,29 @@ export class WavAudio {
     }
 
     /**
+     * @param {Int16Array} samples 16-bit PCM, mono
+     * @param {number} sampleRate
+     * @returns {Buffer} a WAV file of them
+     */
+    static fromPcm16(samples, sampleRate) {
+        const data = samples.length * 2;
+        const header = Buffer.alloc(44);
+        header.write('RIFF', 0, 'ascii');
+        header.writeUInt32LE(36 + data, 4);
+        header.write('WAVEfmt ', 8, 'ascii');
+        header.writeUInt32LE(16, 16);
+        header.writeUInt16LE(PCM, 20);
+        header.writeUInt16LE(1, 22);
+        header.writeUInt32LE(sampleRate, 24);
+        header.writeUInt32LE(sampleRate * 2, 28);
+        header.writeUInt16LE(2, 32);
+        header.writeUInt16LE(16, 34);
+        header.write('data', 36, 'ascii');
+        header.writeUInt32LE(data, 40);
+        return Buffer.concat([header, Buffer.from(samples.buffer, samples.byteOffset, data)]);
+    }
+
+    /**
      * @param {number} rms root mean square of samples from -1 to 1
      * @returns {number} the level of a meter from 0 to 1: -60 dBFS and below is 0, 0 dBFS is 1
      */

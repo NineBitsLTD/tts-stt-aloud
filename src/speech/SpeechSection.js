@@ -1,11 +1,27 @@
 import { createElement, createIcon } from './createElement';
+import { megabytes } from './ModelDialog';
 import { VoicePicker } from './VoicePicker';
 
 /** @typedef {import('../markdown/HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
+/** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
+/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, espeak: boolean }} VoiceModel ready: prepared for sherpa-onnx */
+/** @typedef {{ models: VoiceModel[], pending: { name: string, action: string }[] }} DriverModels the voice models of a driver, those being installed (downloading, preparing) */
 /** @typedef {import('./VoicePicker').PickerVoice} PickerVoice */
 /** @typedef {{ id: string, name: string, kind: 'system' | 'preset' | 'external', url?: string, enabled: boolean }} Driver */
 /** @typedef {{ enabled: boolean, volume: number, driver: string, rate?: number, voice?: string, voices?: Record<string, string[]> }} SectionState */
+/** @typedef {{ heard: boolean, duration: number, ended: string, text: string | null }} MicTest the result of the microphone test */
+
+/** How a recording of the microphone test ended, as the section says it. */
+const ENDINGS = { pause: 'after a pause', limit: 'at its longest', stopped: 'stopped' };
+
+/**
+ * @param {number} ms
+ * @returns {string} seconds with one decimal
+ */
+function seconds(ms) {
+    return `${(ms / 1000).toFixed(1)} s`;
+}
 
 /**
  * A level meter: the bar follows a level at once and falls back slowly; it plays the levels of a
@@ -68,8 +84,10 @@ class LevelMeter {
  * A section of the speech side bar (TTS or STT): the title with the on / off switch, the volume
  * (TTS: of the speech, a share of the computer's; STT: the gain of the microphone), the speed
  * (TTS), the level meter, the driver, "Add driver" with the drivers offered (the presets, the
- * external servers added by "Add External", removed by ×), the voices and their test (TTS). Every
- * change goes to the host, which keeps it in the settings of VS Code and sends the state back.
+ * external servers added by "Add External", removed by ×; under a driver with voice models — Piper —
+ * its models and "Add voice model"), the voices and their test (TTS), the test of the microphone —
+ * recorded, played, the text recognized below (STT). Every change goes to the host, which keeps it
+ * in the settings of VS Code and sends the state back.
  */
 export class SpeechSection {
 
@@ -79,15 +97,18 @@ export class SpeechSection {
      * @param {string} options.title
      * @param {string} options.hint what the section is
      * @param {{ label: string, icon: string, max: number, title: string }} options.volume
-     * @param {boolean} [options.speech] the speed, the voices and the test (TTS)
      * @param {HostRequests} options.host
      * @param {ServerDialog} options.dialog
+     * @param {ModelDialog} options.modelDialog
      */
-    constructor({ name, title, hint, volume, speech = false, host, dialog }) {
+    constructor({ name, title, hint, volume, host, dialog, modelDialog }) {
         this._name = name;
         this._title = title;
         this._host = host;
         this._dialog = dialog;
+        this._modelDialog = modelDialog;
+        /** @type {Record<string, DriverModels>} by driver */
+        this._models = {};
         /** @type {SectionState | null} */
         this._state = null;
         /** @type {Driver[]} */
@@ -123,21 +144,29 @@ export class SpeechSection {
         this._speed = null;
         /** @type {VoicePicker | null} (TTS) */
         this._picker = null;
-        /** @type {HTMLButtonElement | null} (TTS) */
-        this._testButton = null;
+        this._testButton = createElement('button', { className: 'speech-button speech-button--primary speech-section__test', type: 'button' });
+        this._testButton.addEventListener('click', () => this._test());
+        /** @type {HTMLElement | null} what the microphone does (STT) */
+        this._progress = null;
+        /** @type {HTMLElement | null} the result of the microphone test (STT): its text and how it was recorded */
+        this._result = null;
+        this._resultText = null;
+        this._resultMeta = null;
+        this._progressTimer = 0;
         this._note = createElement('p', { className: 'speech-section__note' });
         this._status = createElement('p', { className: 'speech-section__status', role: 'status' });
 
+        const tts = name === 'tts';
         const rows = [
             this._volume.row,
-            ...(speech ? [this._speedRow()] : []),
+            ...(tts ? [this._speedRow()] : []),
             SpeechSection._row(createIcon('pulse'), 'Level', this._meter.element),
             SpeechSection._row(createIcon('plug'), 'Driver', this._driverSelect),
             createElement('div', { className: 'speech-section__drivers' }, this._addToggle, this._driversPanel),
             this._note,
+            ...(tts ? this._voiceRows() : [this._microphoneTest()]),
+            this._status,
         ];
-        if (speech) rows.push(...this._voiceRows());
-        rows.push(this._status);
         this.element = createElement('section', { className: `speech-section speech-section--${name}` }, head, createElement('div', { className: 'speech-section__body' }, ...rows));
     }
 
@@ -145,10 +174,12 @@ export class SpeechSection {
      * @param {SectionState} state the settings of the section
      * @param {Driver[]} drivers
      * @param {string} note what the driver in use cannot do ('' : nothing)
+     * @param {Record<string, DriverModels>} [models] the voice models of the drivers that have them
      */
-    setState(state, drivers, note) {
+    setState(state, drivers, note, models = {}) {
         this._state = state;
         this._drivers = drivers;
+        this._models = models;
         this._switch.checked = state.enabled;
         this.element.classList.toggle('speech-section--off', !state.enabled);
         this._volume.set(state.volume);
@@ -185,6 +216,34 @@ export class SpeechSection {
      */
     setStatus(message) {
         this._status.textContent = message;
+    }
+
+    /**
+     * What the microphone does (STT), for the test or another extension.
+     * @param {{ state: 'waiting' | 'recording' | 'playing' | 'idle', test: boolean, limits?: { waitMs: number, maxMs: number, silenceMs: number } }} message
+     */
+    setMicState({ state, test, limits }) {
+        if (!this._progress) return;
+        clearInterval(this._progressTimer);
+        const since = performance.now();
+        const show = () => {
+            const elapsed = performance.now() - since;
+            const left = Math.max(0, Math.ceil(((limits?.waitMs ?? 5000) - elapsed) / 1000));
+            if (state === 'waiting') {
+                this._progress.textContent = test ? `Speak now — waiting for speech ${left} s` : `An extension waits for speech: ${left} s`;
+            } else if (state === 'recording') {
+                this._progress.textContent = test
+                    ? `Recording ${seconds(elapsed)} — ends after ${seconds(limits?.silenceMs ?? 1000)} of silence, at ${seconds(limits?.maxMs ?? 10000)} at most`
+                    : `An extension records: ${seconds(elapsed)}`;
+            }
+        };
+        if (state === 'waiting' || state === 'recording') {
+            show();
+            this._progressTimer = setInterval(show, 100);
+        } else {
+            this._progress.textContent = state === 'playing' ? 'Playing the recording' : '';
+        }
+        this._progress.classList.toggle('speech-section__progress--live', state !== 'idle');
     }
 
     /**
@@ -230,12 +289,40 @@ export class SpeechSection {
             onSelect: name => this._update('voice', name),
             onCheck: (name, checked) => this._host.send('voiceChecked', { name, checked }),
         });
-        this._testButton = createElement('button', { className: 'speech-button speech-button--primary speech-section__test', type: 'button' });
-        this._testButton.addEventListener('click', () => this._test());
         return [
             SpeechSection._row(createIcon('record-keys'), 'Voice', this._picker.element),
             createElement('div', { className: 'speech-section__actions' }, this._testButton),
         ];
+    }
+
+    /**
+     * @returns {HTMLElement} the test of the microphone (STT): the button, what the microphone does,
+     *   the result — it works while STT is off too (the switch is for other extensions)
+     */
+    _microphoneTest() {
+        this._progress = createElement('p', { className: 'speech-section__progress', role: 'status' });
+        this._resultText = createElement('p', { className: 'speech-section__result-text' });
+        this._resultMeta = createElement('p', { className: 'speech-section__result-meta' });
+        this._result = createElement('div', { className: 'speech-section__result', hidden: true },
+            createElement('span', { className: 'speech-section__result-label', textContent: 'Recognized text' }), this._resultText, this._resultMeta);
+        return createElement('div', { className: 'speech-section__microphone' },
+            createElement('div', { className: 'speech-section__actions' }, this._testButton), this._progress, this._result);
+    }
+
+    /**
+     * @param {MicTest | null} result of the microphone test (null: a test begins)
+     */
+    _showResult(result) {
+        if (!this._result) return;
+        this._result.hidden = !result?.heard;
+        if (!result) return;
+        if (!result.heard) {
+            this._progress.textContent = result.ended === 'no-speech' ? 'No speech was heard: speak right after pressing Test.' : 'The test was stopped.';
+            return;
+        }
+        this._resultText.textContent = result.text ?? 'Recognition is not connected yet: the recording was played back.';
+        this._resultText.classList.toggle('speech-section__result-text--none', result.text === null);
+        this._resultMeta.textContent = `Recorded ${result.duration.toFixed(1)} s, ended ${ENDINGS[result.ended] ?? result.ended}`;
     }
 
     /** Offered drivers besides System: check boxes; the external servers with × to remove them. */
@@ -253,8 +340,44 @@ export class SpeechSection {
                 remove.addEventListener('click', () => this._host.send('removeServer', { section: this._name, id: driver.id }));
                 item.append(remove);
             }
-            return item;
+            const models = this._models[driver.id];
+            return driver.enabled && models ? [item, this._modelsBlock(driver, models)] : [item];
+        }).flat());
+    }
+
+    /**
+     * @param {Driver} driver offered, with voice models
+     * @param {DriverModels} models
+     * @returns {HTMLElement} its models (× removes one) and "Add voice model"
+     */
+    _modelsBlock(driver, { models, pending: installing }) {
+        const items = models.map((model) => {
+            const problem = !model.exists ? 'the file is missing'
+                : !model.ready ? 'not prepared for sherpa-onnx'
+                    : !model.espeak ? 'no espeak-ng-data next to it' : '';
+            const meta = [model.lang, model.downloaded ? megabytes(model.size) : 'from the disk'].filter(Boolean).join(' · ');
+            const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${model.name}` }, createIcon('close'));
+            remove.addEventListener('click', () => this._host.send('removeModel', { driver: driver.id, path: model.path }));
+            return createElement('li', { className: `speech-models__item${model.exists ? '' : ' speech-models__item--missing'}`, title: model.path },
+                createElement('span', { className: 'speech-models__name', textContent: model.name }),
+                createElement('span', { className: `speech-models__meta${problem ? ' speech-models__meta--problem' : ''}` },
+                    ...(problem ? [createIcon('warning'), problem] : [meta])),
+                remove);
+        });
+        const pending = installing.map(({ name, action }) => createElement('li', { className: 'speech-models__item speech-models__item--pending' },
+            createElement('span', { className: 'speech-models__name', textContent: name }),
+            createElement('span', { className: 'speech-models__meta' }, createIcon('loading codicon-modifier-spin'), `${action}…`)));
+        const add = createElement('button', { className: 'speech-button speech-models__add', type: 'button' }, createIcon('add'), 'Add voice model');
+        add.addEventListener('click', () => this._modelDialog.open(`Add ${driver.name} Voice Model`, {
+            browse: () => this._host.request('browseModel'),
+            catalog: () => this._host.request('modelCatalog', { driver: driver.id }),
+            add: choice => this._host.request('addModel', { driver: driver.id, ...choice }),
         }));
+        return createElement('div', { className: 'speech-models' },
+            createElement('span', { className: 'speech-models__title', textContent: `${driver.name} voice models` }),
+            createElement('ul', { className: 'speech-models__list' }, ...items, ...pending,
+                ...(items.length || pending.length ? [] : [createElement('li', { className: 'speech-models__empty', textContent: 'No voice models yet' })])),
+            add);
     }
 
     /** The voices of the driver in use, checked as in the settings (TTS). */
@@ -264,17 +387,23 @@ export class SpeechSection {
         this._picker.set(current, this._state.voices?.[this._state.driver] ?? [], this._state.voice ?? '');
     }
 
-    /** Speaks the phrase of the voice chosen, or stops it. */
+    /**
+     * The test: TTS speaks a phrase with the voice chosen; STT records speech, plays it and shows the
+     * text recognized (the old recording is removed). Pressed again, it stops (STT: the speech
+     * recorded so far is kept and played).
+     */
     async _test() {
         if (this._testing) {
-            this._host.send('stopTest');
+            this._host.send('stopTest', { section: this._name });
             return;
         }
         this._testing = true;
         this._syncTest();
         this.setStatus('');
+        this._showResult(null);
         try {
-            await this._host.request('test', { voice: this._picker.selected });
+            const result = await this._host.request('test', { section: this._name, voice: this._picker?.selected });
+            this._showResult(result);
         } catch (error) {
             this.setStatus(error.message);
         } finally {
@@ -284,10 +413,13 @@ export class SpeechSection {
     }
 
     _syncTest() {
-        if (!this._testButton) return;
-        this._testButton.replaceChildren(createIcon(this._testing ? 'debug-stop' : 'play'), this._testing ? 'Stop' : 'Test voice');
-        this._testButton.title = this._testing ? 'Stop the test' : `Speak a phrase with ${this._picker.selected || 'the voice chosen'}`;
-        this._testButton.disabled = !this._testing && (!this._state?.enabled || !this._picker.selected);
+        const voice = this._picker?.selected ?? '';
+        const idle = this._picker ? 'Test voice' : 'Test microphone';
+        this._testButton.replaceChildren(createIcon(this._testing ? 'debug-stop' : this._picker ? 'play' : 'record'), this._testing ? 'Stop' : idle);
+        this._testButton.title = this._testing ? 'Stop the test'
+            : this._picker ? `Speak a phrase with ${voice || 'the voice chosen'}`
+                : 'Record speech (it waits 5 s for it, records up to 10 s, until 1 s of silence) and play it back';
+        this._testButton.disabled = !this._testing && !!this._picker && (!this._state?.enabled || !voice);
     }
 
     /**

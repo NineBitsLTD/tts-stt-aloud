@@ -113,6 +113,16 @@
         "command": "tts-stt-md-aloud.voices",
         "title": "Voices Offered to Extensions",
         "category": "MD Aloud"
+      },
+      {
+        "command": "tts-stt-md-aloud.record",
+        "title": "Record Speech",
+        "category": "MD Aloud"
+      },
+      {
+        "command": "tts-stt-md-aloud.stopRecording",
+        "title": "Stop Recording Speech",
+        "category": "MD Aloud"
       }
     ],
     "menus": {
@@ -165,6 +175,14 @@
         },
         {
           "command": "tts-stt-md-aloud.voices",
+          "when": "false"
+        },
+        {
+          "command": "tts-stt-md-aloud.record",
+          "when": "false"
+        },
+        {
+          "command": "tts-stt-md-aloud.stopRecording",
           "when": "false"
         }
       ]
@@ -256,12 +274,25 @@
           "order": 8,
           "description": "Checked voices by driver: picked automatically for reading aloud and offered to other extensions."
         },
+        "ttsSttMdAloud.tts.models": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {},
+          "scope": "application",
+          "order": 9,
+          "description": "Files of the voice models by driver (Piper: .onnx files prepared for sherpa-onnx, with tokens.txt next to them), chosen on the disk or downloaded in the side bar."
+        },
         "ttsSttMdAloud.stt.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "application",
           "order": 11,
-          "description": "Speech to text (planned); while it is on, the side bar shows the level of the microphone."
+          "description": "Speech to text: lets other extensions record the microphone. The microphone test of the side bar works either way."
         },
         "ttsSttMdAloud.stt.volume": {
           "type": "number",
