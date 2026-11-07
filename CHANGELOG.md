@@ -11,6 +11,7 @@ All notable changes to the "tts-stt-md-aloud" extension are documented in this f
   - Piper voice models for sherpa-onnx, the engine chosen for Piper (while Piper is offered): `.onnx` files chosen on the disk (models of sherpa-onnx are used where they are, Piper models with their `.onnx.json` are copied into the extension's storage and prepared there) or voices of the Piper catalog downloaded into the extension's storage and prepared there (with the shared espeak-ng-data); kept in `ttsSttMdAloud.tts.models`; Piper speaks in a later version
 - An API and commands for other extensions: `tts.voices()`, `tts.speak()`, `tts.stop()`, `stt.record()`, `stt.stop()`; `tts-stt-md-aloud.speak`, `stopSpeaking`, `voices`, `record`, `stopRecording`
 - Reading aloud in the preview speaks with the driver, volume and speed of the settings (system voices rendered and played by the host, the next phrase rendered ahead); Auto picks the checked voices first; hidden while TTS is off; stops when another speech begins
+- With Remote (SSH, WSL, containers) the extension runs on the local machine (`extensionKind`: ui, workspace): speech and the microphone are the user's
 - Fixed: macOS voices whose long names leave one space before their language (e.g. "Milena (Russian (Russia))") were not listed
 
 ## [1.0.0]

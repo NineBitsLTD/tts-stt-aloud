@@ -22,6 +22,8 @@ npm run pack       # vsce runs the build (vscode:prepublish), then packs tts-stt
 npx eslint src     # lint (no "lint" npm script)
 ```
 
+The extension prefers the UI side (`extensionKind`: ui, then workspace): with Remote (SSH, WSL, containers) it runs on the local machine, so the speech, the audio player and the microphone are those of the user; the preview reads the files of the workspace through the API of VS Code either way.
+
 There are no tests yet. To run/debug the extension, launch an Extension Development Host with `--extensionDevelopmentPath` of this folder (a `.vscode/launch.json` "Run Extension" config, see the README; `.vscode/` is gitignored). The entry point is `dist/extension.cjs`, so **build (or watch) before launching**.
 
 ## Build architecture

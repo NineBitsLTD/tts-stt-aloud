@@ -36,6 +36,10 @@
   "activationEvents": [
     "onFileSystem:json-formatted"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
   "main": "dist/extension.cjs",
   "contributes": {
     "customEditors": [
