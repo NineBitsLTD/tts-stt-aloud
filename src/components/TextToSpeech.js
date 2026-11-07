@@ -4,7 +4,8 @@ import { AudioPlayer, LEVEL_INTERVAL } from './AudioPlayer';
 import { SystemSpeech } from './SystemSpeech';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
-/** @typedef {import('./SystemSpeech').SystemVoice & { checked: boolean }} SpeechVoice */
+/** @typedef {import('./PiperSpeech').PiperSpeech} PiperSpeech */
+/** @typedef {{ name: string, lang: string, score?: number, sample?: string, checked: boolean }} SpeechVoice */
 /** @typedef {{ voice?: string, lang?: string, rate?: number }} SpeakOptions voice: '' or none picks the best (checked) voice of lang; rate: the speed of the settings when not given */
 
 /** Phrases to try a voice with, by language, when the system gives none. */
@@ -17,18 +18,21 @@ const SAMPLES = {
 /**
  * The text to speech of the extension for the Markdown preview, the side bar and other extensions
  * (`activate` returns it, the commands `tts-stt-md-aloud.speak` / `stopSpeaking` / `voices`): the
- * driver, the volume and the speed of the settings. System voices are rendered to audio and
- * played by `AudioPlayer` — the volume is a share of the computer's, the levels go to
- * `onLevels` —; the phrase to come is rendered while one is spoken. One speech at a time: a new
- * one ends the one being spoken, whoever asked for it.
+ * driver, the volume and the speed of the settings. The voices of the system (`SystemSpeech`) and
+ * of Piper (`PiperSpeech`, sherpa-onnx) are rendered to audio and played by `AudioPlayer` — the
+ * volume is a share of the computer's, the levels go to `onLevels` —; the phrase to come is
+ * rendered while one is spoken. One speech at a time: a new one ends the one being spoken,
+ * whoever asked for it.
  */
 export class TextToSpeech {
 
     /**
      * @param {SpeechSettings} settings
+     * @param {PiperSpeech} piper
      */
-    constructor(settings) {
+    constructor(settings, piper) {
         this._settings = settings;
+        this._piper = piper;
         this._system = new SystemSpeech();
         this._player = new AudioPlayer();
         /** @type {vscode.EventEmitter<{ levels: number[], interval: number }>} */
@@ -63,16 +67,20 @@ export class TextToSpeech {
     }
 
     /**
-     * @returns {{ id: string, available: boolean, message: string }} the driver in use: available
-     *   when it can speak (message: why not)
+     * @returns {Promise<{ id: string, available: boolean, message: string }>} the driver in use:
+     *   available when it can speak (message: why not)
      */
-    driver() {
+    async driver() {
         const { driver } = this._settings.get().tts;
         if (driver === 'system') return { id: driver, available: true, message: '' };
+        if (driver === 'piper') {
+            const message = this._piper.unavailable()
+                || ((await this._piper.voices()).length ? '' : 'Piper has no voice model ready for sherpa-onnx: add one under Add driver → Piper.');
+            return { id: driver, available: !message, message };
+        }
         const name = this._settings.driverName('tts', driver);
         const message = driver.startsWith('external:') ? `${name}: speaking through external servers is not supported yet.`
-            : driver === 'piper' ? 'Piper cannot speak yet: its engine, sherpa-onnx, comes in a later version (voice models can be added already, under Add driver).'
-                : `${name} is not installed yet: its models and tools come in a later version.`;
+            : `${name} is not installed yet: its models and tools come in a later version.`;
         return { id: driver, available: false, message };
     }
 
@@ -81,11 +89,17 @@ export class TextToSpeech {
      * @returns {Promise<SpeechVoice[]>} the voices of the driver in use, checked as in the settings
      */
     async voices({ refresh = false } = {}) {
-        const driver = this.driver();
+        const driver = await this.driver();
         if (!driver.available) return [];
-        if (refresh || !this._systemVoices) this._systemVoices = this._system.voices();
         const checked = new Set(this._settings.get().tts.voices[driver.id] ?? []);
-        return (await this._systemVoices).map(voice => ({ ...voice, checked: checked.has(voice.name) }));
+        let voices;
+        if (driver.id === 'piper') {
+            voices = (await this._piper.voices()).map(({ name, lang, score }) => ({ name, lang, score }));
+        } else {
+            if (refresh || !this._systemVoices) this._systemVoices = this._system.voices();
+            voices = await this._systemVoices;
+        }
+        return voices.map(voice => ({ ...voice, checked: checked.has(voice.name) }));
     }
 
     /**
@@ -111,25 +125,27 @@ export class TextToSpeech {
         this._owner = owner;
         const settings = this._settings.get().tts;
         if (!settings.enabled || !text.trim()) return !!settings.enabled;
-        const driver = this.driver();
+        const driver = await this.driver();
         if (!driver.available) throw new Error(driver.message);
         const phrase = await this._resolve(options);
         if (run !== this._run) return false;
         const volume = settings.volume / 100;
-        if (!this._system.canRender) {
+        const system = driver.id === 'system';
+        if (system && !this._system.canRender) {
             await this._system.speak(text, { ...phrase, volume });
             return run === this._run;
         }
         let wav;
         try {
-            wav = await this._render(text, phrase);
-        } catch {
+            wav = await this._render(driver.id, text, phrase);
+        } catch (error) {
+            if (!system) throw error;
             // The system cannot write this voice to a file: it speaks it itself
             if (run !== this._run) return false;
             await this._system.speak(text, { ...phrase, volume });
             return run === this._run;
         }
-        if (next?.text?.trim()) this._renderAhead(next.text, await this._resolve(next));
+        if (next?.text?.trim()) this._renderAhead(driver.id, next.text, await this._resolve(next));
         if (run !== this._run) return false;
         const played = await this._player.play(wav, { volume, onLevels: (levels, interval) => this._levels.fire({ levels, interval }) });
         return played && run === this._run;
@@ -171,24 +187,34 @@ export class TextToSpeech {
     }
 
     /**
+     * @param {string} driver
      * @param {string} text
-     * @param {{ voice?: string, rate: number }} phrase
+     * @param {{ voice?: string, rate: number, lang?: string }} phrase
      * @returns {Promise<Buffer>} the audio of a phrase (rendered ahead when it was the one to come)
      */
-    _render(text, phrase) {
-        const key = JSON.stringify([text, phrase.voice ?? '', phrase.rate]);
+    _render(driver, text, phrase) {
+        const key = JSON.stringify([driver, text, phrase.voice ?? '', phrase.rate]);
         const ahead = this._ahead;
         this._ahead = null;
-        return ahead?.key === key ? ahead.wav : this._system.render(text, phrase);
+        return ahead?.key === key ? ahead.wav : this._engine(driver).render(text, phrase);
     }
 
     /**
+     * @param {string} driver
      * @param {string} text
-     * @param {{ voice?: string, rate: number }} phrase
+     * @param {{ voice?: string, rate: number, lang?: string }} phrase
      */
-    _renderAhead(text, phrase) {
-        const wav = this._system.render(text, phrase);
+    _renderAhead(driver, text, phrase) {
+        const wav = this._engine(driver).render(text, phrase);
         wav.catch(() => {});
-        this._ahead = { key: JSON.stringify([text, phrase.voice ?? '', phrase.rate]), wav };
+        this._ahead = { key: JSON.stringify([driver, text, phrase.voice ?? '', phrase.rate]), wav };
+    }
+
+    /**
+     * @param {string} driver
+     * @returns {{ render: (text: string, phrase: { voice?: string, rate: number, lang?: string }) => Promise<Buffer> }}
+     */
+    _engine(driver) {
+        return driver === 'piper' ? this._piper : this._system;
     }
 }

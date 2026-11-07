@@ -37,7 +37,7 @@ export class ModelDialog {
         this._filter = createElement('input', { className: 'speech-dialog__input', type: 'search', placeholder: 'Filter by name or language', spellcheck: false });
         this._list = createElement('ul', { className: 'speech-dialog__catalog-list', role: 'listbox' });
         this._catalogPanel = createElement('div', { className: 'speech-dialog__catalog', hidden: true }, this._filter, this._list,
-            createElement('p', { className: 'speech-dialog__note', textContent: 'The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded; the first one also brings espeak-ng-data (17 MB), shared by all.' }));
+            createElement('p', { className: 'speech-dialog__note', textContent: 'The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded.' }));
         this._error = createElement('p', { className: 'speech-dialog__error', role: 'alert' });
         this._ok = createElement('button', { className: 'speech-button speech-button--primary', type: 'submit', textContent: 'OK' });
         const cancel = createElement('button', { className: 'speech-button', type: 'button', textContent: 'Cancel' });

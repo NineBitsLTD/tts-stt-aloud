@@ -1,8 +1,8 @@
 {
   "name": "tts-stt-md-aloud",
   "displayName": "TTS / STT MD Aloud",
-  "description": "Markdown preview that translates the text and reads it aloud; text to speech settings for all of VS Code in the side bar; a formatted view of JSON files",
-  "version": "1.1.0",
+  "description": "Markdown preview that translates the text and reads it aloud; speech settings for all of VS Code in the side bar with system and Piper voices (sherpa-onnx); a formatted view of JSON files",
+  "version": "1.2.0",
   "publisher": "ninebits",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -351,15 +351,16 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build",
-    "pack": "vsce package --no-dependencies",
+    "pack": "node scripts/pack.mjs",
     "clean": "rm -rf dist",
     "clean:css-temp": "rm -f src/scss/*.css*",
     "copy:codicons": "mkdir -p dist/codicons && cp node_modules/@vscode/codicons/dist/codicon.css node_modules/@vscode/codicons/dist/codicon.ttf dist/codicons/",
+    "copy:runtime": "node scripts/copy-runtime.mjs",
     "compile:sass": "sass src/scss:src/scss",
     "build:js": "esbuild src/extension.js --bundle --minify --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs",
     "build:js-webview": "esbuild src/markdown.js src/speech.js --bundle --minify --outdir=dist/js",
     "build:css": "npm run compile:sass && esbuild src/scss/*.css --bundle --minify --outdir=dist/css --loader:.css=css && npm run clean:css-temp",
-    "build": "npm run clean && npm run build:js && npm run build:js-webview && npm run build:css && npm run copy:codicons",
+    "build": "npm run clean && npm run build:js && npm run build:js-webview && npm run build:css && npm run copy:codicons && npm run copy:runtime",
     "watch:js": "esbuild src/extension.js --bundle --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs --watch",
     "watch:js-webview": "esbuild src/markdown.js src/speech.js --bundle --outdir=dist/js --watch",
     "watch:css": "sass --watch --no-source-map src/scss:dist/css",
@@ -379,7 +380,9 @@
     "@vscode/codicons": "^0.0.44",
     "dompurify": "^3.4.17",
     "highlight.js": "^11.12.0",
-    "marked": "^12.0.2"
+    "marked": "^12.0.2",
+    "piper-phonemize": "1.5.9",
+    "sherpa-onnx-node": "2.0.1"
   },
   "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"
 }

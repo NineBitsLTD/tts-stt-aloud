@@ -78,6 +78,17 @@ export class WavAudio {
     }
 
     /**
+     * @param {Float32Array | number[]} samples from -1 to 1, mono
+     * @param {number} sampleRate
+     * @returns {Buffer} a WAV file of them, 16-bit
+     */
+    static fromFloat32(samples, sampleRate) {
+        const pcm = new Int16Array(samples.length);
+        for (let index = 0; index < samples.length; index++) pcm[index] = Math.round(Math.max(-1, Math.min(1, samples[index])) * 32767);
+        return WavAudio.fromPcm16(pcm, sampleRate);
+    }
+
+    /**
      * @param {number} rms root mean square of samples from -1 to 1
      * @returns {number} the level of a meter from 0 to 1: -60 dBFS and below is 0, 0 dBFS is 1
      */

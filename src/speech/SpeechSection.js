@@ -5,7 +5,7 @@ import { VoicePicker } from './VoicePicker';
 /** @typedef {import('../markdown/HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
 /** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
-/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, espeak: boolean }} VoiceModel ready: prepared for sherpa-onnx */
+/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean }} VoiceModel ready: prepared for sherpa-onnx */
 /** @typedef {{ models: VoiceModel[], pending: { name: string, action: string }[] }} DriverModels the voice models of a driver, those being installed (downloading, preparing) */
 /** @typedef {import('./VoicePicker').PickerVoice} PickerVoice */
 /** @typedef {{ id: string, name: string, kind: 'system' | 'preset' | 'external', url?: string, enabled: boolean }} Driver */
@@ -352,9 +352,7 @@ export class SpeechSection {
      */
     _modelsBlock(driver, { models, pending: installing }) {
         const items = models.map((model) => {
-            const problem = !model.exists ? 'the file is missing'
-                : !model.ready ? 'not prepared for sherpa-onnx'
-                    : !model.espeak ? 'no espeak-ng-data next to it' : '';
+            const problem = !model.exists ? 'the file is missing' : !model.ready ? 'not prepared for sherpa-onnx' : '';
             const meta = [model.lang, model.downloaded ? megabytes(model.size) : 'from the disk'].filter(Boolean).join(' · ');
             const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${model.name}` }, createIcon('close'));
             remove.addEventListener('click', () => this._host.send('removeModel', { driver: driver.id, path: model.path }));

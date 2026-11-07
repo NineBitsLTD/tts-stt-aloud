@@ -166,7 +166,7 @@ export class SpeechPanel {
             drivers: { tts: this._settings.drivers('tts'), stt: this._settings.drivers('stt') },
             models: { tts: { piper: { models: piper, pending: [...this._piper.pending].map(([name, action]) => ({ name, action })) } } },
             notes: {
-                tts: this._tts.driver().message,
+                tts: (await this._tts.driver()).message,
                 stt: settings.stt.enabled ? 'Other extensions may use the microphone.' : 'Other extensions may not use the microphone (the test works anyway).',
             },
         });

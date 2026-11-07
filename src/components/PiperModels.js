@@ -10,15 +10,6 @@ import * as vscode from 'vscode';
 /** The voices of Piper, published by its authors. */
 const REPOSITORY = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/';
 const CATALOG = `${REPOSITORY}voices.json`;
-/**
- * The data of espeak-ng the Piper models of sherpa-onnx share (the phonemes of the languages): the
- * folder of a vits-piper model of the author of sherpa-onnx, at a fixed commit.
- */
-const ESPEAK = 'espeak-ng-data';
-const ESPEAK_REPO = 'csukuangfj/vits-piper-ru_RU-irina-medium';
-const ESPEAK_REVISION = 'b095bed45c39813266edf14ffa2bade5ebfc929c';
-/** Files of espeak-ng-data downloaded at once. */
-const ESPEAK_PARALLEL = 6;
 const DRIVER = 'piper';
 
 /**
@@ -30,7 +21,6 @@ const DRIVER = 'piper';
  * @property {boolean} exists whether the file is there
  * @property {number} size bytes
  * @property {boolean} ready whether it is prepared for sherpa-onnx: its metadata and `tokens.txt`
- * @property {boolean} espeak whether it has `espeak-ng-data`: next to it, or shared (downloaded)
  *
  * @typedef {object} PiperVoice a voice of the catalog
  * @property {string} key `ru_RU-irina-medium`
@@ -40,7 +30,6 @@ const DRIVER = 'piper';
  * @property {number} size bytes of the model
  * @property {boolean} added whether it is in the list already
  *
- * @typedef {{ path: string, size: number }} RemoteFile a file of a repository and its size
  * @typedef {{ signal: AbortSignal, onBytes: (count: number) => void, transform?: (part: string) => Promise<void> }} SaveOptions
  * @typedef {{ size: number, save: (target: string, options: SaveOptions) => Promise<void> }} VoiceSource a file of a
  *   voice to install: its size and how it is written to the storage (downloaded, copied)
@@ -192,14 +181,14 @@ async function download(url, target, options) {
 
 /**
  * The voice models of Piper (`ttsSttMdAloud.tts.models.piper`), for sherpa-onnx — the engine Piper
- * is to speak with. A voice of the catalog of Piper (rhasspy/piper-voices on Hugging Face) is
- * downloaded into the storage of the extension (`piper/<voice>/`), a model of Piper chosen on the
- * disk (with its `.onnx.json`) is copied there — the file on the disk stays as it is —, and there
- * it is prepared as the script of sherpa-onnx prepares it: its metadata appended to the model,
- * `tokens.txt` from the config; the shared `piper/espeak-ng-data` is downloaded with the first one;
- * the progress is in a notification that can cancel it. A model prepared for sherpa-onnx already
- * (its metadata, `tokens.txt` next to it: vits-piper-…) is used where it is. Removing a model of
- * the storage deletes its folder; a model used where it is only leaves the list.
+ * speaks with (`PiperSpeech`). A voice of the catalog of Piper (rhasspy/piper-voices on Hugging
+ * Face) is downloaded into the storage of the extension (`piper/<voice>/`), a model of Piper chosen
+ * on the disk (with its `.onnx.json`) is copied there — the file on the disk stays as it is —, and
+ * there it is prepared as the script of sherpa-onnx prepares it: its metadata appended to the
+ * model, `tokens.txt` from the config; the progress is in a notification that can cancel it. A
+ * model prepared for sherpa-onnx already (its metadata, `tokens.txt` next to it: vits-piper-…) is
+ * used where it is. Removing a model of the storage deletes its folder; a model used where it is
+ * only leaves the list.
  */
 export class PiperModels {
 
@@ -210,12 +199,8 @@ export class PiperModels {
     constructor(context, settings) {
         this._settings = settings;
         this.folder = join(context.globalStorageUri.fsPath, DRIVER);
-        /** the shared data of espeak-ng of the downloaded models */
-        this.espeakFolder = join(this.folder, ESPEAK);
         /** @type {Promise<Record<string, any>> | null} the catalog, loaded once a session */
         this._catalog = null;
-        /** @type {Promise<void> | null} espeak-ng-data being downloaded */
-        this._espeakDownload = null;
         /** @type {Map<string, 'downloading' | 'preparing'>} the voices being installed into the storage */
         this.pending = new Map();
         /** @type {vscode.EventEmitter<void>} */
@@ -233,21 +218,17 @@ export class PiperModels {
      */
     async list() {
         const paths = this._settings.get().tts.models[DRIVER] ?? [];
-        const shared = await exists(this.espeakFolder);
         return Promise.all(paths.map(async (path) => {
             const info = await stat(path).catch(() => null);
             const meta = info ? await readSherpaMeta(path) : null;
-            const folder = dirname(path);
-            const downloaded = this._isDownloaded(path);
             return {
                 path,
                 name: basename(path).replace(/\.onnx$/i, ''),
                 lang: (await readConfig(path))?.lang || meta?.voice || '',
-                downloaded,
+                downloaded: this._isDownloaded(path),
                 exists: !!info?.isFile(),
                 size: info?.size ?? 0,
-                ready: !!meta && await exists(join(folder, 'tokens.txt')),
-                espeak: (downloaded && shared) || await exists(join(folder, ESPEAK)),
+                ready: !!meta && await exists(join(dirname(path), 'tokens.txt')),
             };
         }));
     }
@@ -292,7 +273,7 @@ export class PiperModels {
 
     /**
      * Adds a model chosen on the disk: one prepared for sherpa-onnx (its metadata, `tokens.txt` next
-     * to it; `espeak-ng-data` next to it is not checked — it may be shared) where it is; else, with
+     * to it) where it is; else, with
      * its config `<model>.onnx.json` next to it, a copy prepared in the storage (it begins here, the
      * model is added when it is ready).
      * @param {string} path
@@ -319,9 +300,9 @@ export class PiperModels {
     }
 
     /**
-     * Begins downloading a voice of the catalog (its model and config, espeak-ng-data with the first
-     * one) and preparing it for sherpa-onnx; the model is added when it is ready. The progress is in
-     * a notification, which can cancel it.
+     * Begins downloading a voice of the catalog (its model and config) and preparing it for
+     * sherpa-onnx; the model is added when it is ready. The progress is in a notification, which
+     * can cancel it.
      * @param {string} key
      * @returns {Promise<string>} why it does not begin ('' : it began)
      */
@@ -387,8 +368,8 @@ export class PiperModels {
     }
 
     /**
-     * Writes a voice into its folder of the storage and prepares it for sherpa-onnx (espeak-ng-data
-     * first, once): `tokens.txt` from its config, the metadata appended to the model when it has none.
+     * Writes a voice into its folder of the storage and prepares it for sherpa-onnx: `tokens.txt`
+     * from its config, the metadata appended to the model when it has none.
      * @param {string} name
      * @param {{ config: VoiceSource, model: VoiceSource }} sources
      * @param {vscode.Progress<{ message?: string, increment?: number }>} progress
@@ -401,15 +382,12 @@ export class PiperModels {
         const { signal } = abort;
         const folder = join(this.folder, name);
         try {
-            const espeakFiles = !this._espeakDownload && !(await exists(this.espeakFolder)) ? await this._espeakFiles(signal) : [];
-            const total = [config, model, ...espeakFiles].reduce((sum, file) => sum + file.size, 0) || 1;
+            const total = config.size + model.size || 1;
             let done = 0;
             const onBytes = (count) => {
                 done += count;
                 progress.report({ increment: (count / total) * 100, message: `${Math.round((done / total) * 100)}% of ${(total / 2 ** 20).toFixed(0)} MB` });
             };
-            if (espeakFiles.length) this._espeakDownload = this._downloadEspeak(espeakFiles, signal, onBytes);
-            if (this._espeakDownload) await this._espeakDownload;
             const configPath = join(folder, `${name}.onnx.json`);
             const modelPath = join(folder, `${name}.onnx`);
             await config.save(configPath, { signal, onBytes });
@@ -430,52 +408,11 @@ export class PiperModels {
     }
 
     /**
-     * @param {AbortSignal} signal
-     * @returns {Promise<RemoteFile[]>} the files of espeak-ng-data in its repository
-     */
-    async _espeakFiles(signal) {
-        const response = await fetch(`https://huggingface.co/api/models/${ESPEAK_REPO}/tree/${ESPEAK_REVISION}/${ESPEAK}?recursive=true`, { signal });
-        if (!response.ok) throw new Error(`The list of espeak-ng-data could not be loaded: ${response.status} ${response.statusText}`);
-        const files = (await response.json()).filter(item => item?.type === 'file').map(item => ({ path: String(item.path), size: Number(item.size) || 0 }));
-        if (!files.length) throw new Error('The list of espeak-ng-data is empty');
-        return files;
-    }
-
-    /**
-     * Downloads espeak-ng-data into `piper/espeak-ng-data` (through `.part`), several files at once.
-     * @param {RemoteFile[]} files
-     * @param {AbortSignal} signal
-     * @param {(count: number) => void} onBytes
-     */
-    async _downloadEspeak(files, signal, onBytes) {
-        const part = `${this.espeakFolder}.part`;
-        try {
-            await rm(part, { recursive: true, force: true });
-            const queue = [...files];
-            const worker = async () => {
-                for (let file = queue.shift(); file; file = queue.shift()) {
-                    const inside = file.path.slice(ESPEAK.length + 1);
-                    await download(`https://huggingface.co/${ESPEAK_REPO}/resolve/${ESPEAK_REVISION}/${file.path.split('/').map(encodeURIComponent).join('/')}`,
-                        join(part, ...inside.split('/')), { signal, size: file.size, onBytes });
-                }
-            };
-            await Promise.all(Array.from({ length: ESPEAK_PARALLEL }, worker));
-            await rename(part, this.espeakFolder);
-        } catch (error) {
-            await rm(part, { recursive: true, force: true });
-            throw error;
-        } finally {
-            this._espeakDownload = null;
-        }
-    }
-
-    /**
      * @param {string} path
      * @returns {boolean} whether a model is in the storage of the extension (downloaded)
      */
     _isDownloaded(path) {
         const inside = relative(this.folder, path);
-        const parts = inside.split(sep);
-        return !!inside && !inside.startsWith('..') && !isAbsolute(inside) && parts.length <= 2 && !parts[0].startsWith(ESPEAK);
+        return !!inside && !inside.startsWith('..') && !isAbsolute(inside) && inside.split(sep).length <= 2;
     }
 }
