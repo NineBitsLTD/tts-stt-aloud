@@ -2,7 +2,7 @@
 // resources/icon-space.svg — the icon of the universe page of gw (a planet in its orbit among
 // stars; in this copy the small star that was over the label is moved under the big star on the
 // right, and the big star on the left up and to the left) —, turned by -90°, with the label
-// TTS/STT MD (the same picture as the icon of babylon-editor, which has the label BABYLON). The
+// TTS/STT (the same picture as the icon of babylon-editor, which has the label BABYLON). The
 // picture fills a square with rounded corners (its drawn bounds, outline included, centred, with a
 // margin); the label stays inside those bounds, in their bottom right
 // corner: its right edge at the outermost star on the right, its bottom a little above the bottom
@@ -25,8 +25,8 @@ let margin: CGFloat = 46     // free space between the picture and the edges of 
 let cornerRadius: CGFloat = 184 // the background: a square with rounded corners, at the drawing size
 let paper = "#000000"        // the colour of the background and of the outlines
 let ink = "#ffffff"          // the colour of the picture and of the label
-let label = "TTS/STT MD"
-let labelShare: CGFloat = 0.7 // width of the label as a share of the width of the picture
+let label = "TTS/STT"
+let labelShare: CGFloat = 0.5 // width of the label as a share of the width of the picture
 let labelLift: CGFloat = 0.05 // the label stands this share of the height of the picture above its bottom edge
 let pictureOutline = 18      // width of the white outline of the picture, in units of its viewBox
 let pictureRotation = -90    // degrees, as SVG turns (negative: counter-clockwise), about the centre of the viewBox

@@ -1,6 +1,6 @@
 import { marked } from 'marked';
 import { parse, parseFragment } from 'parse5';
-import { phraseSpans } from './phrasesOf';
+import { phraseSpans } from './phraseSpans';
 
 /**
  * @typedef {'markdown' | 'html' | 'plain' | 'lines'} TextFormat plain: paragraphs parted by blank
@@ -11,7 +11,7 @@ import { phraseSpans } from './phrasesOf';
  *   characters, where it is in the source
  */
 
-/** Elements whose content is not read (as the preview skips code blocks). */
+/** Elements whose content is not read (code blocks among them). */
 const SKIPPED_ELEMENTS = new Set(['head', 'script', 'style', 'template', 'noscript', 'pre', 'svg', 'math', 'iframe', 'object', 'embed', 'canvas', 'audio', 'video', 'select', 'textarea', 'datalist']);
 /** Elements that part the text around them. */
 const BLOCK_ELEMENTS = new Set(['address', 'article', 'aside', 'blockquote', 'body', 'caption', 'center', 'dd', 'details', 'dialog', 'div', 'dl', 'dt', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hgroup', 'hr', 'html', 'legend', 'li', 'main', 'menu', 'nav', 'ol', 'p', 'section', 'summary', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
@@ -367,7 +367,7 @@ function blocksOf(text, format) {
 
 /**
  * Text as it is read aloud: Markdown and HTML become plain readable text (no markup, addresses or
- * code blocks, as in the preview), split into phrases, each knowing the part of the source it came from.
+ * code blocks), split into phrases, each knowing the part of the source it came from.
  * @param {string} source
  * @param {TextFormat} format
  * @param {number} [base] where the source begins in its document

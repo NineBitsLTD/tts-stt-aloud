@@ -1,5 +1,5 @@
 /**
- * Shared by the extension host (`TextToSpeech`) and the preview webview (`ReadAloud`).
+ * The voices of a language, for `TextToSpeech` and `PiperSpeech`.
  * @typedef {object} Voice
  * @property {string} name
  * @property {string} lang language tag as the engine names it (`ru-RU`, `en_US`, … ; '' unknown)

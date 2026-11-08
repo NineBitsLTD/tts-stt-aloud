@@ -1,18 +1,18 @@
 {
-  "name": "tts-stt-md-aloud",
-  "displayName": "TTS / STT MD Aloud",
-  "description": "Markdown preview that translates the text and reads it aloud; speech settings for all of VS Code in the side bar with system and Piper voices (sherpa-onnx); a formatted view of JSON files",
-  "version": "1.6.1",
+  "name": "tts-stt-aloud",
+  "displayName": "TTS / STT Aloud",
+  "description": "Text to speech and speech to text for all of VS Code: a player in every text editor (reads the text or the clipboard aloud, dictates at the cursor), system and Piper voices, Whisper recognition (sherpa-onnx), settings in the side bar and an API for other extensions; a formatted view of JSON files",
+  "version": "2.0.0",
   "publisher": "ninebits",
   "license": "SEE LICENSE IN COPYING",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/NineBitsLTD/tts-stt-md-aloud.git"
+    "url": "https://github.com/NineBitsLTD/tts-stt-aloud.git"
   },
-  "homepage": "https://github.com/NineBitsLTD/tts-stt-md-aloud#readme",
+  "homepage": "https://github.com/NineBitsLTD/tts-stt-aloud#readme",
   "bugs": {
-    "url": "https://github.com/NineBitsLTD/tts-stt-md-aloud/issues"
+    "url": "https://github.com/NineBitsLTD/tts-stt-aloud/issues"
   },
   "type": "module",
   "engines": {
@@ -22,15 +22,12 @@
     "Other"
   ],
   "keywords": [
-    "markdown",
-    "preview",
     "text to speech",
     "speech to text",
     "tts",
     "stt",
     "read aloud",
     "voice",
-    "translate",
     "json"
   ],
   "activationEvents": [
@@ -42,273 +39,225 @@
   ],
   "main": "dist/extension.cjs",
   "contributes": {
-    "customEditors": [
-      {
-        "viewType": "tts-stt-md-aloud.preview",
-        "displayName": "Markdown Preview (TTS / STT MD Aloud)",
-        "selector": [
-          {
-            "filenamePattern": "*.md"
-          },
-          {
-            "filenamePattern": "*.markdown"
-          }
-        ],
-        "priority": "option"
-      }
-    ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "tts-stt-md-aloud",
+          "id": "tts-stt-aloud",
           "title": "TTS / STT",
           "icon": "resources/speaker.svg"
         }
       ]
     },
     "views": {
-      "tts-stt-md-aloud": [
+      "tts-stt-aloud": [
         {
           "type": "webview",
-          "id": "tts-stt-md-aloud.speech",
+          "id": "tts-stt-aloud.speech",
           "name": "Speech"
         }
       ]
     },
     "commands": [
       {
-        "command": "tts-stt-md-aloud.openPreview",
-        "title": "Open Preview (Translate, Read Aloud)",
-        "category": "MD Aloud",
-        "icon": {
-          "light": "resources/open-preview-light.svg",
-          "dark": "resources/open-preview-dark.svg"
-        }
-      },
-      {
-        "command": "tts-stt-md-aloud.openRaw",
-        "title": "Open as Raw Markdown",
-        "category": "MD Aloud",
-        "icon": "$(file-code)"
-      },
-      {
-        "command": "tts-stt-md-aloud.openFormattedJson",
+        "command": "tts-stt-aloud.openFormattedJson",
         "title": "Open Formatted JSON",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(file-text)"
       },
       {
-        "command": "tts-stt-md-aloud.openRawJson",
+        "command": "tts-stt-aloud.openRawJson",
         "title": "Open as Raw JSON",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(file-code)"
       },
       {
-        "command": "tts-stt-md-aloud.speak",
+        "command": "tts-stt-aloud.speak",
         "title": "Speak Text",
-        "category": "MD Aloud"
+        "category": "TTS / STT"
       },
       {
-        "command": "tts-stt-md-aloud.stopSpeaking",
+        "command": "tts-stt-aloud.stopSpeaking",
         "title": "Stop Speaking",
-        "category": "MD Aloud"
+        "category": "TTS / STT"
       },
       {
-        "command": "tts-stt-md-aloud.voices",
+        "command": "tts-stt-aloud.voices",
         "title": "Voices Offered to Extensions",
-        "category": "MD Aloud"
+        "category": "TTS / STT"
       },
       {
-        "command": "tts-stt-md-aloud.record",
+        "command": "tts-stt-aloud.record",
         "title": "Record Speech",
-        "category": "MD Aloud"
+        "category": "TTS / STT"
       },
       {
-        "command": "tts-stt-md-aloud.stopRecording",
+        "command": "tts-stt-aloud.stopRecording",
         "title": "Stop Recording Speech",
-        "category": "MD Aloud"
+        "category": "TTS / STT"
       },
       {
-        "command": "tts-stt-md-aloud.playerPlay",
+        "command": "tts-stt-aloud.playerPlay",
         "title": "Read Aloud",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(play)"
       },
       {
-        "command": "tts-stt-md-aloud.playerPause",
+        "command": "tts-stt-aloud.playerPause",
         "title": "Pause Reading",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(debug-pause)"
       },
       {
-        "command": "tts-stt-md-aloud.playerResume",
+        "command": "tts-stt-aloud.playerResume",
         "title": "Resume Reading",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(play)"
       },
       {
-        "command": "tts-stt-md-aloud.playerBack",
+        "command": "tts-stt-aloud.playerBack",
         "title": "Previous Phrase",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(debug-reverse-continue)",
-        "enablement": "ttsSttMdAloud.playerHasPrevious"
+        "enablement": "ttsSttAloud.playerHasPrevious"
       },
       {
-        "command": "tts-stt-md-aloud.playerForward",
+        "command": "tts-stt-aloud.playerForward",
         "title": "Next Phrase",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(debug-continue)",
-        "enablement": "ttsSttMdAloud.playerHasNext"
+        "enablement": "ttsSttAloud.playerHasNext"
       },
       {
-        "command": "tts-stt-md-aloud.playerStop",
+        "command": "tts-stt-aloud.playerStop",
         "title": "Stop Reading",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "tts-stt-md-aloud.dictate",
+        "command": "tts-stt-aloud.dictate",
         "title": "Dictate into the Editor",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(record)"
       },
       {
-        "command": "tts-stt-md-aloud.stopDictation",
+        "command": "tts-stt-aloud.stopDictation",
         "title": "Stop Dictation",
-        "category": "MD Aloud",
+        "category": "TTS / STT",
         "icon": "$(stop-circle)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "tts-stt-md-aloud.openPreview",
-          "when": "resourceScheme == file && resourceExtname =~ /^\\.(md|markdown)$/i && !activeCustomEditorId && !isInDiffEditor",
-          "group": "navigation"
-        },
-        {
-          "command": "tts-stt-md-aloud.openRaw",
-          "when": "activeCustomEditorId == tts-stt-md-aloud.preview",
-          "group": "navigation"
-        },
-        {
-          "command": "tts-stt-md-aloud.openFormattedJson",
+          "command": "tts-stt-aloud.openFormattedJson",
           "when": "resourceScheme == file && resourceExtname =~ /^\\.jsonc?$/i && !activeCustomEditorId && !isInDiffEditor",
           "group": "navigation"
         },
         {
-          "command": "tts-stt-md-aloud.openRawJson",
+          "command": "tts-stt-aloud.openRawJson",
           "when": "resourceScheme == json-formatted",
           "group": "navigation"
         },
         {
-          "command": "tts-stt-md-aloud.dictate",
-          "when": "config.ttsSttMdAloud.stt.enabled && !ttsSttMdAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.dictate",
+          "when": "config.ttsSttAloud.stt.enabled && !ttsSttAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1002"
         },
         {
-          "command": "tts-stt-md-aloud.stopDictation",
-          "when": "config.ttsSttMdAloud.stt.enabled && ttsSttMdAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.stopDictation",
+          "when": "config.ttsSttAloud.stt.enabled && ttsSttAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1002"
         },
         {
-          "command": "tts-stt-md-aloud.playerPlay",
-          "when": "config.ttsSttMdAloud.tts.enabled && !ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.playerPlay",
+          "when": "config.ttsSttAloud.tts.enabled && !ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1005"
         },
         {
-          "command": "tts-stt-md-aloud.playerBack",
-          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.playerBack",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1006"
         },
         {
-          "command": "tts-stt-md-aloud.playerPause",
-          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && !ttsSttMdAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.playerPause",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && !ttsSttAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1005"
         },
         {
-          "command": "tts-stt-md-aloud.playerResume",
-          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && ttsSttMdAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.playerResume",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && ttsSttAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1005"
         },
         {
-          "command": "tts-stt-md-aloud.playerForward",
-          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.playerForward",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1004"
         },
         {
-          "command": "tts-stt-md-aloud.playerStop",
-          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "command": "tts-stt-aloud.playerStop",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
           "group": "navigation@-1003"
         }
       ],
       "commandPalette": [
         {
-          "command": "tts-stt-md-aloud.playerPlay",
-          "when": "config.ttsSttMdAloud.tts.enabled && !ttsSttMdAloud.playerActive"
+          "command": "tts-stt-aloud.playerPlay",
+          "when": "config.ttsSttAloud.tts.enabled && !ttsSttAloud.playerActive"
         },
         {
-          "command": "tts-stt-md-aloud.playerPause",
-          "when": "ttsSttMdAloud.playerActive && !ttsSttMdAloud.playerPaused"
+          "command": "tts-stt-aloud.playerPause",
+          "when": "ttsSttAloud.playerActive && !ttsSttAloud.playerPaused"
         },
         {
-          "command": "tts-stt-md-aloud.playerResume",
-          "when": "ttsSttMdAloud.playerActive && ttsSttMdAloud.playerPaused"
+          "command": "tts-stt-aloud.playerResume",
+          "when": "ttsSttAloud.playerActive && ttsSttAloud.playerPaused"
         },
         {
-          "command": "tts-stt-md-aloud.playerBack",
-          "when": "ttsSttMdAloud.playerActive"
+          "command": "tts-stt-aloud.playerBack",
+          "when": "ttsSttAloud.playerActive"
         },
         {
-          "command": "tts-stt-md-aloud.playerForward",
-          "when": "ttsSttMdAloud.playerActive"
+          "command": "tts-stt-aloud.playerForward",
+          "when": "ttsSttAloud.playerActive"
         },
         {
-          "command": "tts-stt-md-aloud.playerStop",
-          "when": "ttsSttMdAloud.playerActive"
+          "command": "tts-stt-aloud.playerStop",
+          "when": "ttsSttAloud.playerActive"
         },
         {
-          "command": "tts-stt-md-aloud.dictate",
-          "when": "config.ttsSttMdAloud.stt.enabled && !ttsSttMdAloud.dictating"
+          "command": "tts-stt-aloud.dictate",
+          "when": "config.ttsSttAloud.stt.enabled && !ttsSttAloud.dictating"
         },
         {
-          "command": "tts-stt-md-aloud.stopDictation",
-          "when": "ttsSttMdAloud.dictating"
+          "command": "tts-stt-aloud.stopDictation",
+          "when": "ttsSttAloud.dictating"
         },
         {
-          "command": "tts-stt-md-aloud.openPreview",
-          "when": "resourceExtname =~ /^\\.(md|markdown)$/i"
-        },
-        {
-          "command": "tts-stt-md-aloud.openRaw",
-          "when": "activeCustomEditorId == tts-stt-md-aloud.preview"
-        },
-        {
-          "command": "tts-stt-md-aloud.openFormattedJson",
+          "command": "tts-stt-aloud.openFormattedJson",
           "when": "resourceExtname =~ /^\\.jsonc?$/i"
         },
         {
-          "command": "tts-stt-md-aloud.openRawJson",
+          "command": "tts-stt-aloud.openRawJson",
           "when": "resourceScheme == json-formatted"
         },
         {
-          "command": "tts-stt-md-aloud.speak",
+          "command": "tts-stt-aloud.speak",
           "when": "false"
         },
         {
-          "command": "tts-stt-md-aloud.stopSpeaking",
+          "command": "tts-stt-aloud.stopSpeaking",
           "when": "false"
         },
         {
-          "command": "tts-stt-md-aloud.voices",
+          "command": "tts-stt-aloud.voices",
           "when": "false"
         },
         {
-          "command": "tts-stt-md-aloud.record",
+          "command": "tts-stt-aloud.record",
           "when": "false"
         },
         {
-          "command": "tts-stt-md-aloud.stopRecording",
+          "command": "tts-stt-aloud.stopRecording",
           "when": "false"
         }
       ]
@@ -316,14 +265,14 @@
     "configuration": {
       "title": "TTS / STT",
       "properties": {
-        "ttsSttMdAloud.tts.enabled": {
+        "ttsSttAloud.tts.enabled": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "order": 1,
-          "description": "Text to speech: reading aloud in the Markdown preview and the speech asked for by other extensions."
+          "description": "Text to speech: reading text editors aloud and the speech asked for by other extensions."
         },
-        "ttsSttMdAloud.tts.volume": {
+        "ttsSttAloud.tts.volume": {
           "type": "number",
           "default": 100,
           "minimum": 0,
@@ -332,7 +281,7 @@
           "order": 2,
           "description": "Volume of the speech, in % of the volume set on the computer."
         },
-        "ttsSttMdAloud.tts.rate": {
+        "ttsSttAloud.tts.rate": {
           "type": "number",
           "default": 1,
           "minimum": 0.5,
@@ -341,7 +290,7 @@
           "order": 3,
           "description": "Speed of the speech (1 is the normal speed)."
         },
-        "ttsSttMdAloud.tts.activeDrivers": {
+        "ttsSttAloud.tts.activeDrivers": {
           "type": "array",
           "items": {
             "type": "string"
@@ -351,9 +300,9 @@
           ],
           "scope": "application",
           "order": 4,
-          "markdownDescription": "Drivers that speak together: `system` and drivers added to `#ttsSttMdAloud.tts.drivers#`; their voices are offered together, each phrase is spoken by the driver of its voice."
+          "markdownDescription": "Drivers that speak together: `system` and drivers added to `#ttsSttAloud.tts.drivers#`; their voices are offered together, each phrase is spoken by the driver of its voice."
         },
-        "ttsSttMdAloud.tts.drivers": {
+        "ttsSttAloud.tts.drivers": {
           "type": "array",
           "items": {
             "type": "string"
@@ -363,7 +312,7 @@
           "order": 5,
           "markdownDescription": "Drivers offered besides System: `piper`, `silero`, `external:<server name>`."
         },
-        "ttsSttMdAloud.tts.servers": {
+        "ttsSttAloud.tts.servers": {
           "type": "array",
           "items": {
             "type": "object",
@@ -385,14 +334,14 @@
           "order": 6,
           "description": "External TTS servers (their keys are kept in the secret storage of VS Code)."
         },
-        "ttsSttMdAloud.tts.voice": {
+        "ttsSttAloud.tts.voice": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 7,
           "description": "The voice chosen in the side bar (the voice test)."
         },
-        "ttsSttMdAloud.tts.voices": {
+        "ttsSttAloud.tts.voices": {
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -405,7 +354,7 @@
           "order": 8,
           "description": "Checked voices by driver: picked automatically for reading aloud and offered to other extensions."
         },
-        "ttsSttMdAloud.tts.models": {
+        "ttsSttAloud.tts.models": {
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -418,14 +367,14 @@
           "order": 9,
           "description": "Files of the voice models by driver (Piper: .onnx files prepared for sherpa-onnx, with tokens.txt next to them), chosen on the disk or downloaded in the side bar."
         },
-        "ttsSttMdAloud.stt.enabled": {
+        "ttsSttAloud.stt.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "application",
           "order": 11,
           "description": "Speech to text: lets other extensions record the microphone. The microphone test of the side bar works either way."
         },
-        "ttsSttMdAloud.stt.volume": {
+        "ttsSttAloud.stt.volume": {
           "type": "number",
           "default": 100,
           "minimum": 0,
@@ -434,14 +383,14 @@
           "order": 12,
           "description": "Gain of the microphone signal, in % (100 is the signal as recorded)."
         },
-        "ttsSttMdAloud.stt.driver": {
+        "ttsSttAloud.stt.driver": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 13,
-          "markdownDescription": "Driver of speech recognition, one of `#ttsSttMdAloud.stt.drivers#`; empty or not offered: the first of them."
+          "markdownDescription": "Driver of speech recognition, one of `#ttsSttAloud.stt.drivers#`; empty or not offered: the first of them."
         },
-        "ttsSttMdAloud.stt.drivers": {
+        "ttsSttAloud.stt.drivers": {
           "type": "array",
           "items": {
             "type": "string"
@@ -453,7 +402,7 @@
           "order": 14,
           "markdownDescription": "Drivers of speech recognition offered: `whisper`, `external:<server name>`."
         },
-        "ttsSttMdAloud.stt.servers": {
+        "ttsSttAloud.stt.servers": {
           "type": "array",
           "items": {
             "type": "object",
@@ -475,7 +424,7 @@
           "order": 15,
           "description": "External STT servers (their keys are kept in the secret storage of VS Code)."
         },
-        "ttsSttMdAloud.stt.models": {
+        "ttsSttAloud.stt.models": {
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -488,14 +437,14 @@
           "order": 16,
           "description": "Files of the models by driver (Whisper: the encoder of a model of sherpa-onnx, its decoder and tokens next to it), chosen on the disk or downloaded in the side bar."
         },
-        "ttsSttMdAloud.stt.model": {
+        "ttsSttAloud.stt.model": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 17,
-          "description": "The model that recognizes speech (the path of a Whisper encoder of ttsSttMdAloud.stt.models; empty: the first ready one)."
+          "description": "The model that recognizes speech (the path of a Whisper encoder of ttsSttAloud.stt.models; empty: the first ready one)."
         },
-        "ttsSttMdAloud.stt.language": {
+        "ttsSttAloud.stt.language": {
           "type": "string",
           "default": "",
           "scope": "application",
@@ -515,11 +464,11 @@
     "notices": "node scripts/third-party-notices.mjs",
     "compile:sass": "sass src/scss:src/scss",
     "build:js": "esbuild src/extension.js --bundle --minify --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs",
-    "build:js-webview": "esbuild src/markdown.js src/speech.js --bundle --minify --outdir=dist/js",
+    "build:js-webview": "esbuild src/speech.js --bundle --minify --outdir=dist/js",
     "build:css": "npm run compile:sass && esbuild src/scss/*.css --bundle --minify --outdir=dist/css --loader:.css=css && npm run clean:css-temp",
     "build": "npm run clean && npm run build:js && npm run build:js-webview && npm run build:css && npm run copy:codicons && npm run copy:runtime",
     "watch:js": "esbuild src/extension.js --bundle --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs --watch",
-    "watch:js-webview": "esbuild src/markdown.js src/speech.js --bundle --outdir=dist/js --watch",
+    "watch:js-webview": "esbuild src/speech.js --bundle --outdir=dist/js --watch",
     "watch:css": "sass --watch --no-source-map src/scss:dist/css",
     "watch": "npm run build && concurrently 'npm:watch:*'"
   },
@@ -535,8 +484,6 @@
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.44",
-    "dompurify": "^3.4.17",
-    "highlight.js": "^11.12.0",
     "marked": "^12.0.2",
     "parse5": "^8.1.0",
     "piper-phonemize": "1.5.9",

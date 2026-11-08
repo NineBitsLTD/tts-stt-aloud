@@ -3,7 +3,7 @@ import { DriverPicker } from './DriverPicker';
 import { megabytes } from './ModelDialog';
 import { VoicePicker } from './VoicePicker';
 
-/** @typedef {import('../markdown/HostRequests').HostRequests} HostRequests */
+/** @typedef {import('./HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
 /** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
 /** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean, license?: import('../utils/voiceLicense').VoiceLicense | null }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes; license: of a voice of Piper */
@@ -350,7 +350,7 @@ export class SpeechSection {
      * @returns {HTMLElement} the speed slider (TTS)
      */
     _speedRow() {
-        this._speed = this._range({ label: 'Speed', icon: 'dashboard', title: 'Speed of the speech (also the speed of reading the Markdown preview)', min: 0.5, max: 2, step: 0.05, format: value => `${value.toFixed(2)}×`, key: 'rate' });
+        this._speed = this._range({ label: 'Speed', icon: 'dashboard', title: 'Speed of the speech', min: 0.5, max: 2, step: 0.05, format: value => `${value.toFixed(2)}×`, key: 'rate' });
         return this._speed.row;
     }
 

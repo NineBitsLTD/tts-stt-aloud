@@ -22,8 +22,8 @@ function isJsonFile(uri) {
 export class JsonFormattedView {
 
     static scheme = 'json-formatted';
-    static openCommand = 'tts-stt-md-aloud.openFormattedJson';
-    static rawCommand = 'tts-stt-md-aloud.openRawJson';
+    static openCommand = 'tts-stt-aloud.openFormattedJson';
+    static rawCommand = 'tts-stt-aloud.openRawJson';
 
     constructor() {
         this._onDidChangeFile = new vscode.EventEmitter();

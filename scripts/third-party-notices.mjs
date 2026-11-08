@@ -20,8 +20,6 @@ const COMPONENTS = [
     { name: 'sherpa-onnx', package: 'sherpa-onnx-node', license: 'Apache-2.0', url: 'https://github.com/k2-fsa/sherpa-onnx', texts: ['resources/licenses/sherpa-onnx-LICENSE.txt'] },
     { name: 'ONNX Runtime', license: 'MIT', url: 'https://github.com/microsoft/onnxruntime', texts: ['resources/licenses/onnxruntime-LICENSE.txt'], note: 'Shipped with sherpa-onnx.' },
     { name: 'marked', package: 'marked', license: 'MIT', url: 'https://github.com/markedjs/marked', texts: [`${modules('marked')}/LICENSE.md`] },
-    { name: 'DOMPurify', package: 'dompurify', license: 'MPL-2.0 OR Apache-2.0', url: 'https://github.com/cure53/DOMPurify', texts: [`${modules('dompurify')}/LICENSE`] },
-    { name: 'highlight.js', package: 'highlight.js', license: 'BSD-3-Clause', url: 'https://github.com/highlightjs/highlight.js', texts: [`${modules('highlight.js')}/LICENSE`] },
     { name: 'parse5', package: 'parse5', license: 'MIT', url: 'https://github.com/inikulin/parse5', texts: [`${modules('parse5')}/LICENSE`] },
     { name: 'entities', package: 'entities', license: 'BSD-2-Clause', url: 'https://github.com/fb55/entities', texts: [`${modules('entities')}/LICENSE`] },
     { name: 'Codicons', package: '@vscode/codicons', license: 'CC-BY-4.0 (icons), MIT (code)', url: 'https://github.com/microsoft/vscode-codicons', texts: [`${modules('@vscode/codicons')}/LICENSE`, `${modules('@vscode/codicons')}/LICENSE-CODE`] },
@@ -50,7 +48,7 @@ function sectionOf(component) {
 
 const notices = `# Third-party notices
 
-The package of TTS / STT MD Aloud (the VSIX) holds the components below. Because it holds piper-phonemize and espeak-ng, the package as a whole is distributed under the GNU General Public License, version 3 or later (\`COPYING\`). The source code of the extension itself is under the MIT license (\`LICENSE\`): https://github.com/NineBitsLTD/tts-stt-md-aloud
+The package of TTS / STT Aloud (the VSIX) holds the components below. Because it holds piper-phonemize and espeak-ng, the package as a whole is distributed under the GNU General Public License, version 3 or later (\`COPYING\`). The source code of the extension itself is under the MIT license (\`LICENSE\`): https://github.com/NineBitsLTD/tts-stt-aloud
 
 The voice models of Piper and the models of Whisper are not part of the package: they are downloaded or chosen by the user, each under its own license.
 

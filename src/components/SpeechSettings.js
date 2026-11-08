@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
-/** The section of the settings of VS Code (`ttsSttMdAloud.tts.*`, `ttsSttMdAloud.stt.*`). */
-const CONFIG = 'ttsSttMdAloud';
+/** The section of the settings of VS Code (`ttsSttAloud.tts.*`, `ttsSttAloud.stt.*`). */
+const CONFIG = 'ttsSttAloud';
 /** The driver id of an external server: `external:<name>`. */
 const EXTERNAL = 'external:';
 
@@ -64,7 +64,7 @@ function clamp(value, min, max, fallback) {
 
 /**
  * The speech settings of VS Code for every extension: kept in the user settings
- * (`ttsSttMdAloud.*`, read by any extension), the keys of external servers in the secret storage
+ * (`ttsSttAloud.*`, read by any extension), the keys of external servers in the secret storage
  * of VS Code. Values are checked as they are read: a hand-edited setting out of range or a
  * driver no longer offered does not break the speech.
  */
@@ -262,7 +262,7 @@ export class SpeechSettings {
     }
 
     /**
-     * @param {string} key under `ttsSttMdAloud.`
+     * @param {string} key under `ttsSttAloud.`
      * @returns {boolean} whether the user settings have no value of their own for it
      */
     isDefault(key) {
@@ -327,7 +327,7 @@ export class SpeechSettings {
     }
 
     /**
-     * @param {string} key under `ttsSttMdAloud.`
+     * @param {string} key under `ttsSttAloud.`
      * @param {unknown} value
      */
     async _set(key, value) {

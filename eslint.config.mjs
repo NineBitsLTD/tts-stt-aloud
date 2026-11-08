@@ -21,7 +21,7 @@ export default [{
     rules,
 }, {
     // Webviews (browser)
-    files: ["src/markdown.js", "src/markdown/**/*.js", "src/speech.js", "src/speech/**/*.js"],
+    files: ["src/speech.js", "src/speech/**/*.js"],
     languageOptions: {
         globals: { ...globals.browser, acquireVsCodeApi: "readonly" },
         ecmaVersion: 2022,

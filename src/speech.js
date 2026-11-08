@@ -1,4 +1,4 @@
-import { HostRequests } from './markdown/HostRequests';
+import { HostRequests } from './speech/HostRequests';
 import { ModelDialog } from './speech/ModelDialog';
 import { PlayerSection } from './speech/PlayerSection';
 import { ServerDialog } from './speech/ServerDialog';

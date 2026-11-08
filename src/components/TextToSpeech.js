@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { estimateReading } from '../utils/phrasesOf';
+import { estimateReading } from '../utils/phraseSpans';
 import { pickVoice } from '../utils/pickVoice';
 import { WavAudio } from '../utils/WavAudio';
 import { AudioPlayer, LEVEL_INTERVAL } from './AudioPlayer';
@@ -37,8 +37,8 @@ const SAMPLES = {
 };
 
 /**
- * The text to speech of the extension for the Markdown preview, the side bar and other extensions
- * (`activate` returns it, the commands `tts-stt-md-aloud.speak` / `stopSpeaking` / `voices`): the
+ * The text to speech of the extension for the player of the editors, the side bar and other extensions
+ * (`activate` returns it, the commands `tts-stt-aloud.speak` / `stopSpeaking` / `voices`): the
  * active drivers, the volume and the speed of the settings. The voices of the active drivers are
  * offered together (keyed `<driver>:<name>`); a phrase is spoken by the driver of its voice — the
  * voice given, else the best of its language: a checked one first, then by quality. The voices of
@@ -86,9 +86,9 @@ export class TextToSpeech {
      */
     register() {
         return vscode.Disposable.from(
-            vscode.commands.registerCommand('tts-stt-md-aloud.speak', (text, options) => this.speak(String(text ?? ''), options ?? {}, 'command')),
-            vscode.commands.registerCommand('tts-stt-md-aloud.stopSpeaking', () => this.stop()),
-            vscode.commands.registerCommand('tts-stt-md-aloud.voices', () => this.offeredVoices()),
+            vscode.commands.registerCommand('tts-stt-aloud.speak', (text, options) => this.speak(String(text ?? ''), options ?? {}, 'command')),
+            vscode.commands.registerCommand('tts-stt-aloud.stopSpeaking', () => this.stop()),
+            vscode.commands.registerCommand('tts-stt-aloud.voices', () => this.offeredVoices()),
             new vscode.Disposable(() => this.dispose()),
         );
     }

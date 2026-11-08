@@ -339,7 +339,7 @@ function latin(text, english, reader) {
 
 /**
  * @param {string} sentence
- * @returns {boolean} whether it is mostly Latin letters (the rule the preview picks an English voice by)
+ * @returns {boolean} whether it is mostly Latin letters (the rule an English voice is picked by)
  */
 export function isEnglish(sentence) {
     const cyrillic = (sentence.match(/[А-Яа-яЁё]/g) ?? []).length;

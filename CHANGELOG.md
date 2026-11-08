@@ -1,6 +1,11 @@
 # Change Log
 
-All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
+All notable changes to the "tts-stt-aloud" extension are documented in this file.
+
+## [2.0.0]
+
+- The extension is now **TTS / STT Aloud** (`ninebits.tts-stt-aloud`, settings `ttsSttAloud.*`, repository `tts-stt-aloud`), with the label TTS/STT on its icon. It is a new extension for VS Code: uninstall the old one (`ninebits.tts-stt-md-aloud`) after installing it. On the first start its models and user settings are brought over; the keys of external servers have to be entered again
+- The Markdown preview is gone, with its translation (DEF / RU / UA / EN) and reading aloud: Markdown files are read by the player of the editor, as plain text. The API (`getExtension`, commands, settings) has the new name
 
 ## [1.6.1]
 

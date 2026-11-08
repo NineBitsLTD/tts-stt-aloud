@@ -51,7 +51,7 @@ function defaultFolder() {
     } catch {
         // No such user in the system: its name in the environment
     }
-    return join(tmpdir(), `tts-stt-md-aloud-${user}`);
+    return join(tmpdir(), `tts-stt-aloud-${user}`);
 }
 
 /**

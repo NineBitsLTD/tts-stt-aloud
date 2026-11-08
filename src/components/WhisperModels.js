@@ -57,7 +57,7 @@ export async function readWhisperMeta(encoder) {
 }
 
 /**
- * The Whisper models (`ttsSttMdAloud.stt.models.whisper`) sherpa-onnx recognizes speech with
+ * The Whisper models (`ttsSttAloud.stt.models.whisper`) sherpa-onnx recognizes speech with
  * (`WhisperRecognizer`): an encoder, its decoder and tokens next to it (`<name>-encoder[.int8].onnx`,
  * `<name>-decoder[.int8].onnx`, `<name>-tokens.txt`, as sherpa-onnx exports them). One chosen on the
  * disk (the encoder or the decoder) is used where it is; one of the catalog — the int8 models of

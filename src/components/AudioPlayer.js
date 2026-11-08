@@ -13,7 +13,7 @@ let fileCount = 0;
  * @returns {string} a new path for a temporary sound file
  */
 export function temporaryWav() {
-    return join(tmpdir(), `tts-stt-md-aloud-${process.pid}-${++fileCount}.wav`);
+    return join(tmpdir(), `tts-stt-aloud-${process.pid}-${++fileCount}.wav`);
 }
 
 /**

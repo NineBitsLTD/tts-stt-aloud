@@ -1,6 +1,6 @@
 import { Dictation } from './components/Dictation';
 import { JsonFormattedView } from './components/JsonFormattedView';
-import { MarkdownPreview } from './components/MarkdownPreview';
+import { migrateOldName } from './components/migrateOldName';
 import { PiperModels } from './components/PiperModels';
 import { PiperSpeech } from './components/PiperSpeech';
 import { SpeechPanel } from './components/SpeechPanel';
@@ -14,10 +14,12 @@ import { WhisperRecognizer } from './components/WhisperRecognizer';
 /**
  * @param {import('vscode').ExtensionContext} context
  * @returns {object} the API of the extension for other extensions
- *   (`vscode.extensions.getExtension('ninebits.tts-stt-md-aloud').activate()`)
+ *   (`vscode.extensions.getExtension('ninebits.tts-stt-aloud').activate()`)
  */
-export function activate(context) {
-	// Speech settings of VS Code (ttsSttMdAloud.*), the text to speech (system voices, Piper through
+export async function activate(context) {
+	// Before version 2 it was tts-stt-md-aloud: its settings and models come over once
+	await migrateOldName(context);
+	// Speech settings of VS Code (ttsSttAloud.*), the text to speech (system voices, Piper through
 	// sherpa-onnx with its voice models) and the microphone with Whisper recognizing (sherpa-onnx) that follow them
 	const settings = new SpeechSettings(context);
 	const piper = new PiperModels(context, settings);
@@ -25,8 +27,6 @@ export function activate(context) {
 	const whisper = new WhisperModels(context, settings);
 	const stt = new SpeechToText(context, settings, new WhisperRecognizer(context, whisper));
 	context.subscriptions.push(settings, piper, whisper, tts.register(), stt.register());
-	// Markdown files: a preview next to the text, translated and read aloud
-	context.subscriptions.push(new MarkdownPreview(context, settings, tts).register());
 	// .json files: a formatted view next to the raw text, saved compact
 	context.subscriptions.push(new JsonFormattedView().register());
 	// Any text editor: read aloud (its selection, else its text; or the clipboard) and dictated into
@@ -57,7 +57,7 @@ export function activate(context) {
 			/** Ends the recording asked for through this API (the speech recorded so far is kept). */
 			stop: () => stt.stop('api'),
 		},
-		/** @returns the speech settings (`ttsSttMdAloud.*`, checked) */
+		/** @returns the speech settings (`ttsSttAloud.*`, checked) */
 		settings: () => settings.get(),
 		onDidChangeSettings: settings.onDidChange,
 	};

@@ -11,7 +11,7 @@ import { exists } from './ModelStore';
 
 /**
  * The side bar of the speech settings (the speaker of the activity bar, the webview view
- * `tts-stt-md-aloud.speech`; `src/speech.js`): Player — the source, the buttons and the time of the reading of
+ * `tts-stt-aloud.speech`; `src/speech.js`): Player — the source, the buttons and the time of the reading of
  * `TextPlayer`, the button of `Dictation` —, TTS — on / off, volume, speed, the level of the
  * sound, the driver, the drivers offered (Piper, Silero, external servers), the voices checked and
  * the voice tested —, STT — on / off (whether other extensions may use the microphone), the gain
@@ -23,7 +23,7 @@ import { exists } from './ModelStore';
  */
 export class SpeechPanel {
 
-    static viewId = 'tts-stt-md-aloud.speech';
+    static viewId = 'tts-stt-aloud.speech';
 
     /**
      * @param {vscode.ExtensionContext} context

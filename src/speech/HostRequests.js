@@ -1,6 +1,6 @@
 /**
- * Requests from a webview to the extension host that wait for a reply (`MarkdownPreview` and
- * `SpeechPanel` on the host answer them with `{ type: 'hostReply', requestId, result | error }`).
+ * Requests from the webview to the extension host that wait for a reply (`SpeechPanel` on the host
+ * answers them with `{ type: 'hostReply', requestId, result | error }`).
  */
 export class HostRequests {
 

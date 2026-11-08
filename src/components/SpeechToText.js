@@ -37,9 +37,9 @@ function limitsOf(limits = {}) {
 
 /**
  * The microphone of the extension for the side bar and other extensions (`activate` returns it,
- * the commands `tts-stt-md-aloud.record` / `stopRecording`): it records speech — waits for it to
+ * the commands `tts-stt-aloud.record` / `stopRecording`): it records speech — waits for it to
  * begin, ends it after a pause or at its longest (`MicRecorder`) — with the gain of the settings.
- * Other extensions may record only while STT is on (`ttsSttMdAloud.stt.enabled`); the test of the
+ * Other extensions may record only while STT is on (`ttsSttAloud.stt.enabled`); the test of the
  * side bar records either way, keeps the recording in the storage of the extension and plays it.
  * With the Whisper driver the speech is recognized (`WhisperRecognizer`: the model and the language
  * of the settings — `ui`: the language of VS Code). The levels and the state of a recording go to
@@ -82,8 +82,8 @@ export class SpeechToText {
      */
     register() {
         return vscode.Disposable.from(
-            vscode.commands.registerCommand('tts-stt-md-aloud.record', options => this.record(options ?? {}, 'command')),
-            vscode.commands.registerCommand('tts-stt-md-aloud.stopRecording', () => this.stop()),
+            vscode.commands.registerCommand('tts-stt-aloud.record', options => this.record(options ?? {}, 'command')),
+            vscode.commands.registerCommand('tts-stt-aloud.stopRecording', () => this.stop()),
             new vscode.Disposable(() => this.dispose()),
         );
     }

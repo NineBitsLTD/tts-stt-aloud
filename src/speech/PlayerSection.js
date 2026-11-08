@@ -1,6 +1,6 @@
 import { createElement, createIcon } from './createElement';
 
-/** @typedef {import('../markdown/HostRequests').HostRequests} HostRequests */
+/** @typedef {import('./HostRequests').HostRequests} HostRequests */
 /** @typedef {import('../components/TextPlayer').PlayerState & { speech: boolean, microphone: boolean, dictating: boolean }} PlayerSectionState */
 
 /**

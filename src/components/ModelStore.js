@@ -81,7 +81,7 @@ export async function copy(path, target, options) {
 }
 
 /**
- * The models of a driver (`ttsSttMdAloud.<section>.models.<driver>`): files chosen on the disk, used
+ * The models of a driver (`ttsSttAloud.<section>.models.<driver>`): files chosen on the disk, used
  * where they are, or installed into the storage of the extension (`<driver>/<name>/`: downloaded,
  * copied and prepared) in the background with a notification that can cancel it — listed as
  * downloading / preparing meanwhile, added when ready. Removing a model of the storage deletes its

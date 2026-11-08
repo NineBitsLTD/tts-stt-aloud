@@ -75,7 +75,7 @@ export function tokensOf(config) {
 }
 
 /**
- * The voice models of Piper (`ttsSttMdAloud.tts.models.piper`), for sherpa-onnx — the engine Piper
+ * The voice models of Piper (`ttsSttAloud.tts.models.piper`), for sherpa-onnx — the engine Piper
  * speaks with (`PiperSpeech`). A voice of the catalog of Piper (rhasspy/piper-voices on Hugging
  * Face) is downloaded into the storage of the extension (`piper/<voice>/`), a model of Piper chosen
  * on the disk (with its `.onnx.json`) is copied there — the file on the disk stays as it is —, and

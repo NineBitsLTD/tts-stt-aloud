@@ -19,14 +19,6 @@ export function phraseSpans(text) {
 }
 
 /**
- * @param {string} text
- * @returns {string[]} its phrases (sentences)
- */
-export function phrasesOf(text) {
-    return phraseSpans(text).map(phrase => phrase.text);
-}
-
-/**
  * @param {number} ms
  * @returns {string} `m:ss` or `h:mm:ss`
  */

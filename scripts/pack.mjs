@@ -1,6 +1,6 @@
 // Packs the VSIX for the platform of this machine (`npm run pack`): the native addon of sherpa-onnx
 // in dist/native is built for it, so the package is platform-specific
-// (tts-stt-md-aloud-<platform>-<arch>-<version>.vsix); vsce runs the build first (vscode:prepublish).
+// (tts-stt-aloud-<platform>-<arch>-<version>.vsix); vsce runs the build first (vscode:prepublish).
 import { spawnSync } from 'node:child_process';
 
 /** The targets of vsce by the platform and architecture of Node. */

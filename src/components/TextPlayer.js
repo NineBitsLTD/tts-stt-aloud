@@ -2,7 +2,7 @@ import { posix } from 'node:path';
 import * as vscode from 'vscode';
 import { guessLanguage } from '../utils/guessLanguage';
 import { localeText, spokenLocale } from '../utils/localeText';
-import { clock, estimateReading } from '../utils/phrasesOf';
+import { clock, estimateReading } from '../utils/phraseSpans';
 import { DEVICE_PRIORITY } from './DeviceLock';
 import { formatOfLanguage, guessMarkup, readablePhrases } from '../utils/readablePhrases';
 
@@ -42,7 +42,7 @@ const CLIPBOARD_INTERVAL = 2000;
  * Reads aloud the text of an editor (its selection, else all of it) or the clipboard, phrase by
  * phrase — Markdown and HTML as plain text (`readablePhrases`) —, announcing first what it reads;
  * the phrase read is highlighted in its editor and scrolled to; pause / resume, a phrase back or on,
- * stop. The buttons are those of the editor title (`when`: the context keys `ttsSttMdAloud.player*`)
+ * stop. The buttons are those of the editor title (`when`: the context keys `ttsSttAloud.player*`)
  * and of the Player section of the side bar (`state`, `onDidChange`), which also shows the time. It
  * speaks through `TextToSpeech`, so another speech beginning ends it.
  */
@@ -99,7 +99,7 @@ export class TextPlayer {
      * @returns {vscode.Disposable}
      */
     register() {
-        const command = (name, run) => vscode.commands.registerCommand(`tts-stt-md-aloud.${name}`, run);
+        const command = (name, run) => vscode.commands.registerCommand(`tts-stt-aloud.${name}`, run);
         this._rememberEditor(vscode.window.activeTextEditor);
         this._refresh();
         return vscode.Disposable.from(
@@ -324,7 +324,7 @@ export class TextPlayer {
     /**
      * @param {PlayerPhrase[]} phrases
      * @param {number} rate
-     * @returns {{ durations: number[], total: number }} the estimate of the preview for all of them,
+     * @returns {{ durations: number[], total: number }} the estimate for all of them,
      *   shared out among the phrases
      */
     static _timing(phrases, rate) {
@@ -518,10 +518,10 @@ export class TextPlayer {
     /** The context keys of the buttons and the side bar follow. */
     _publish() {
         const reading = this._reading;
-        this._setContext('ttsSttMdAloud.playerActive', !!reading);
-        this._setContext('ttsSttMdAloud.playerPaused', !!reading?.paused);
-        this._setContext('ttsSttMdAloud.playerHasPrevious', this._hasPrevious());
-        this._setContext('ttsSttMdAloud.playerHasNext', this._hasNext());
+        this._setContext('ttsSttAloud.playerActive', !!reading);
+        this._setContext('ttsSttAloud.playerPaused', !!reading?.paused);
+        this._setContext('ttsSttAloud.playerHasPrevious', this._hasPrevious());
+        this._setContext('ttsSttAloud.playerHasNext', this._hasNext());
         this._changed.fire();
     }
 

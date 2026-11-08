@@ -51,8 +51,8 @@ export class Dictation {
      */
     register() {
         return vscode.Disposable.from(
-            vscode.commands.registerCommand('tts-stt-md-aloud.dictate', uri => this.start(uri)),
-            vscode.commands.registerCommand('tts-stt-md-aloud.stopDictation', () => this.stop()),
+            vscode.commands.registerCommand('tts-stt-aloud.dictate', uri => this.start(uri)),
+            vscode.commands.registerCommand('tts-stt-aloud.stopDictation', () => this.stop()),
             this._player.onWillPlay(() => this.stop()),
             this._settings.onDidChange(() => {
                 if (!this._settings.get().stt.enabled) this.stop();
@@ -168,7 +168,7 @@ export class Dictation {
     }
 
     _publish() {
-        vscode.commands.executeCommand('setContext', 'ttsSttMdAloud.dictating', this.active);
+        vscode.commands.executeCommand('setContext', 'ttsSttAloud.dictating', this.active);
         this._changed.fire();
     }
 }
