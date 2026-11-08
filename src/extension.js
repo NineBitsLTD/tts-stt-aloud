@@ -3,6 +3,7 @@ import { JsonFormattedView } from './components/JsonFormattedView';
 import { migrateOldName } from './components/migrateOldName';
 import { PiperModels } from './components/PiperModels';
 import { PiperSpeech } from './components/PiperSpeech';
+import { PreviewHighlight } from './components/PreviewHighlight';
 import { SpeechPanel } from './components/SpeechPanel';
 import { SpeechSettings } from './components/SpeechSettings';
 import { SpeechToText } from './components/SpeechToText';
@@ -30,7 +31,7 @@ export async function activate(context) {
 	// .json files: a formatted view next to the raw text, saved compact
 	context.subscriptions.push(new JsonFormattedView().register());
 	// Any text editor: read aloud (its selection, else its text; or the clipboard) and dictated into
-	const player = new TextPlayer(settings, tts);
+	const player = new TextPlayer(settings, tts, new PreviewHighlight(context));
 	const dictation = new Dictation(settings, tts, stt, player);
 	context.subscriptions.push(player.register(), dictation.register());
 	// The speaker of the activity bar: the side bar of the speech settings (with the models of Piper and Whisper) and the player

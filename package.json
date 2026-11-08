@@ -2,7 +2,7 @@
   "name": "tts-stt-aloud",
   "displayName": "TTS / STT Aloud",
   "description": "%description%",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "publisher": "ninebits",
   "license": "SEE LICENSE IN COPYING",
   "icon": "resources/icon.png",
@@ -171,32 +171,32 @@
         },
         {
           "command": "tts-stt-aloud.playerPlay",
-          "when": "config.ttsSttAloud.tts.enabled && !ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "when": "config.ttsSttAloud.tts.enabled && !ttsSttAloud.playerActive && (activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/ || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor')",
           "group": "navigation@-1005"
         },
         {
           "command": "tts-stt-aloud.playerBack",
-          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && (activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/ || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor')",
           "group": "navigation@-1006"
         },
         {
           "command": "tts-stt-aloud.playerPause",
-          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && !ttsSttAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && !ttsSttAloud.playerPaused && (activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/ || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor')",
           "group": "navigation@-1005"
         },
         {
           "command": "tts-stt-aloud.playerResume",
-          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && ttsSttAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && ttsSttAloud.playerPaused && (activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/ || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor')",
           "group": "navigation@-1005"
         },
         {
           "command": "tts-stt-aloud.playerForward",
-          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && (activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/ || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor')",
           "group": "navigation@-1004"
         },
         {
           "command": "tts-stt-aloud.playerStop",
-          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "when": "config.ttsSttAloud.tts.enabled && ttsSttAloud.playerActive && (activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/ || activeWebviewPanelId == 'markdown.preview' || activeCustomEditorId == 'vscode.markdown.preview.editor')",
           "group": "navigation@-1003"
         }
       ],
@@ -453,7 +453,13 @@
           "description": "%config.stt.language%"
         }
       }
-    }
+    },
+    "markdown.previewScripts": [
+      "./dist/js/preview-reading.js"
+    ],
+    "markdown.previewStyles": [
+      "./dist/css/preview-reading.css"
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run build",
@@ -465,11 +471,11 @@
     "notices": "node scripts/third-party-notices.mjs",
     "compile:sass": "sass src/scss:src/scss",
     "build:js": "esbuild src/extension.js --bundle --minify --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs",
-    "build:js-webview": "esbuild src/speech.js --bundle --minify --outdir=dist/js",
+    "build:js-webview": "esbuild src/speech.js src/preview-reading.js --bundle --minify --outdir=dist/js && printf ':root {}\\n' > dist/js/preview-reading-state.css",
     "build:css": "npm run compile:sass && esbuild src/scss/*.css --bundle --minify --outdir=dist/css --loader:.css=css && npm run clean:css-temp",
     "build": "npm run clean && npm run build:js && npm run build:js-webview && npm run build:css && npm run copy:codicons && npm run copy:runtime",
     "watch:js": "esbuild src/extension.js --bundle --outfile=dist/extension.cjs --external:vscode --platform=node --format=cjs --watch",
-    "watch:js-webview": "esbuild src/speech.js --bundle --outdir=dist/js --watch",
+    "watch:js-webview": "esbuild src/speech.js src/preview-reading.js --bundle --outdir=dist/js --watch",
     "watch:css": "sass --watch --no-source-map src/scss:dist/css",
     "watch": "npm run build && concurrently 'npm:watch:*'"
   },

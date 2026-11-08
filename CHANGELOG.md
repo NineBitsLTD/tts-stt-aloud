@@ -2,6 +2,10 @@
 
 All notable changes to the "tts-stt-aloud" extension are documented in this file.
 
+## [2.2.0]
+
+- The buttons of reading are also in the title of the Markdown preview of VS Code (and the Player section reads it), also for a translation opened by the Translator extension: the whole file, the block being read marked in the preview and scrolled to; reading ends with the tab of the preview
+
 ## [2.1.0]
 
 - Russian and Ukrainian localization of the whole interface, by the display language of VS Code: the side bar, commands, settings, notifications and messages, with the names of languages and decimal marks of the language

@@ -10,11 +10,12 @@ const t = vscode.l10n.t;
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
+/** @typedef {import('./PreviewHighlight').PreviewHighlight} PreviewHighlight */
 /**
  * @typedef {{ text: string, start: number, end: number, lang?: string }} PlayerPhrase start: -1 for the
  *   announcement, which is no part of the text
- * @typedef {{ kind: 'file' | 'clipboard', name: string, selected: boolean, document: vscode.TextDocument | null, phrases: PlayerPhrase[] }} PlayerTarget
- *   what can be read: phrases begin with the announcement
+ * @typedef {{ kind: 'file' | 'clipboard', name: string, selected: boolean, document: vscode.TextDocument | null, phrases: PlayerPhrase[], preview?: boolean }} PlayerTarget
+ *   what can be read: phrases begin with the announcement; preview: the file of a Markdown preview, read from its tab
  * @typedef {object} PlayerReading
  * @property {PlayerTarget} target
  * @property {number[]} durations about how long each phrase takes, in ms
@@ -35,13 +36,47 @@ const t = vscode.l10n.t;
 
 /** The phrases the language of a text is told by. */
 const LANGUAGE_SAMPLE = 100;
+/** The built-in Markdown preview, as the tabs tell it: its webview and its custom editor. */
+const PREVIEW_WEBVIEW = /(^|-)markdown\.preview$/;
+const PREVIEW_EDITOR = 'vscode.markdown.preview.editor';
+/** The scheme of the resource the title of a webview gives to its commands: it says nothing of the file. */
+const WEBVIEW_RESOURCE = 'webview-panel';
+/** The schemes of documents that are not what a preview shows, with the same names (a preview may show a virtual file). */
+const NOT_SOURCES = new Set(['git', 'output']);
+/** Where the file of a preview is looked for when no tab or document has it. */
+const MARKDOWN_FILES = '**/*.{md,mkd,mkdn,mdwn,mdown,markdown,markdn,mdtxt,mdtext}';
+const SEARCH_LIMIT = 5000;
 /** How long after a change of the selection or the text the time is counted again (ms). */
 const REFRESH_DELAY = 150;
 /** How often the clipboard is looked at while it is the source and the side bar is open (VS Code does not tell when it changes). */
 const CLIPBOARD_INTERVAL = 2000;
 
 /**
- * Reads aloud the text of an editor (its selection, else all of it) or the clipboard, phrase by
+ * @param {vscode.Tab | undefined} tab
+ * @returns {boolean} whether it shows the built-in Markdown preview
+ */
+function isPreviewTab(tab) {
+    const input = tab?.input;
+    return (input instanceof vscode.TabInputWebview && PREVIEW_WEBVIEW.test(input.viewType))
+        || (input instanceof vscode.TabInputCustom && input.viewType === PREVIEW_EDITOR);
+}
+
+/**
+ * @param {string} label of the tab of a preview ("Preview a.md", "[Preview] a.md", in the language of VS Code)
+ * @param {vscode.Uri} uri
+ * @returns {boolean} whether it names this file, as a whole word
+ */
+function labelNames(label, uri) {
+    const name = posix.basename(uri.path);
+    const at = label.indexOf(name);
+    if (!name || at < 0) return false;
+    const part = /[\p{L}\p{N}._-]/u;
+    return !part.test(label[at - 1] ?? '') && !part.test(label[at + name.length] ?? '');
+}
+
+/**
+ * Reads aloud the text of an editor (its selection, else all of it) — of the file of the built-in
+ * Markdown preview when that is the active tab — or the clipboard, phrase by
  * phrase — Markdown and HTML as plain text (`readablePhrases`) —, announcing first what it reads;
  * the phrase read is highlighted in its editor and scrolled to; pause / resume, a phrase back or on,
  * stop. The buttons are those of the editor title (`when`: the context keys `ttsSttAloud.player*`)
@@ -53,10 +88,12 @@ export class TextPlayer {
     /**
      * @param {SpeechSettings} settings
      * @param {TextToSpeech} tts
+     * @param {PreviewHighlight} previewHighlight marks the block read in a Markdown preview
      */
-    constructor(settings, tts) {
+    constructor(settings, tts, previewHighlight) {
         this._settings = settings;
         this._tts = tts;
+        this._previewHighlight = previewHighlight;
         /** @type {'file' | 'clipboard'} */
         this.source = 'file';
         /** @type {PlayerReading | null} */
@@ -67,6 +104,8 @@ export class TextPlayer {
         this._clipboard = null;
         /** @type {vscode.TextEditor | null} the last editor of a real document (the Output panel is an editor too) */
         this._editor = null;
+        /** @type {Map<string, vscode.Uri>} the files of the previews found, by the titles of their tabs (VS Code closes a document no editor holds) */
+        this._previewFiles = new Map();
         /** @type {{ key: string, phrases: PlayerPhrase[] } | null} the phrases of the whole document last read */
         this._whole = null;
         /** @type {{ text: string, target: PlayerTarget | null } | null} */
@@ -119,8 +158,11 @@ export class TextPlayer {
             vscode.window.onDidChangeVisibleTextEditors(() => this._highlight(false)),
             vscode.workspace.onDidChangeTextDocument(event => this._onEdit(event)),
             vscode.workspace.onDidCloseTextDocument((document) => {
-                if (this._reading?.target.document === document) this.stop();
+                // A file shown only by a preview may be closed for VS Code while the preview stays
+                if (this._reading?.target.document === document && !this._reading.target.preview) this.stop();
             }),
+            vscode.window.tabGroups.onDidChangeTabs(() => this._onTabs()),
+            vscode.window.tabGroups.onDidChangeTabGroups(() => this._schedule()),
             this._settings.onDidChange(() => this._onSettings()),
             this._tts.onWaiting((waiting) => {
                 this._waiting = waiting;
@@ -178,17 +220,18 @@ export class TextPlayer {
      */
     async play() {
         if (this.source === 'clipboard') this._begin(await this._clipboardTarget());
-        else this._begin(this._fileTarget(this.editorFor()));
+        else this._begin(await this._activeFile());
     }
 
     /**
-     * Reads the text of an editor: its selection, else all of it (the source becomes the file).
-     * @param {vscode.Uri} [uri]
+     * Reads the text of an editor (its selection, else all of it), or the file of a Markdown preview;
+     * the source becomes the file.
+     * @param {vscode.Uri} [uri] the resource of the editor title pressed
      */
-    playFile(uri) {
+    async playFile(uri) {
         this.source = 'file';
         this._watchClipboard();
-        this._begin(this._fileTarget(this.editorFor(uri)));
+        this._begin(await this._activeFile(uri));
     }
 
     togglePause() {
@@ -374,15 +417,64 @@ export class TextPlayer {
     }
 
     /**
-     * @param {vscode.TextEditor | null} editor
-     * @returns {PlayerTarget | null} what it would read: its selections, else its text
+     * @param {vscode.Uri} [uri] the resource of the editor title pressed
+     * @returns {Promise<PlayerTarget | null>} what would be read: the text editor, else the Markdown preview
      */
-    _fileTarget(editor) {
-        if (!editor) return null;
-        const { document } = editor;
+    async _activeFile(uri) {
+        const editor = uri?.scheme === WEBVIEW_RESOURCE ? null : this.editorFor(uri);
+        if (editor) return this._documentTarget(editor.document, editor.selections.filter(selection => !selection.isEmpty).sort((a, b) => a.start.compareTo(b.start)));
+        return this._previewTarget(this._previewTab(uri));
+    }
+
+    /**
+     * @param {vscode.Uri} [uri] the resource of the editor title pressed (none: the active group only)
+     * @returns {vscode.Tab | undefined} the tab of the Markdown preview meant
+     */
+    _previewTab(uri) {
+        const { activeTabGroup, all } = vscode.window.tabGroups;
+        const tabs = (uri ? [activeTabGroup, ...all] : [activeTabGroup]).map(group => group.activeTab).filter(isPreviewTab);
+        return tabs.find(tab => tab.input.uri && tab.input.uri.toString() === uri?.toString()) ?? tabs[0];
+    }
+
+    /**
+     * @param {vscode.Tab | undefined} tab of a Markdown preview
+     * @returns {Promise<PlayerTarget | null>} the whole text of its file: a selection in a preview is out of reach
+     */
+    async _previewTarget(tab) {
+        if (!tab) return null;
+        const uri = await this._fileOfPreview(tab);
+        const document = uri ? await Promise.resolve(vscode.workspace.openTextDocument(uri)).catch(() => null) : null;
+        return document && { ...this._documentTarget(document), preview: true };
+    }
+
+    /**
+     * A custom editor knows its file. The webview of a preview tells nothing but the name in the title
+     * of its tab, so a file of that name is looked for: the last text editor (a preview is opened from
+     * it), the text tabs, the open documents (with the virtual files previews show), one found before,
+     * then the workspace. Of two files of one name the first found.
+     * @param {vscode.Tab} tab of a Markdown preview
+     * @returns {Promise<vscode.Uri | undefined>}
+     */
+    async _fileOfPreview(tab) {
+        if (tab.input instanceof vscode.TabInputCustom) return tab.input.uri;
+        const { label } = tab;
+        const { activeTabGroup, all } = vscode.window.tabGroups;
+        const textTabs = group => group.tabs.map(item => item.input).filter(input => input instanceof vscode.TabInputText).map(input => input.uri);
+        const known = [this._editor?.document.uri, ...textTabs(activeTabGroup), ...all.flatMap(textTabs), ...vscode.workspace.textDocuments.map(document => document.uri)];
+        const found = known.find(uri => uri && !NOT_SOURCES.has(uri.scheme) && labelNames(label, uri)) ?? this._previewFiles.get(label)
+            ?? (await vscode.workspace.findFiles(MARKDOWN_FILES, '**/node_modules/**', SEARCH_LIMIT)).find(uri => labelNames(label, uri));
+        if (found) this._previewFiles.set(label, found);
+        return found;
+    }
+
+    /**
+     * @param {vscode.TextDocument} document
+     * @param {readonly vscode.Selection[]} [selections] not empty, in their order
+     * @returns {PlayerTarget} what it would read: the selections, else its text
+     */
+    _documentTarget(document, selections = []) {
         const name = posix.basename(document.uri.path) || document.fileName;
         const format = formatOfLanguage(document.languageId);
-        const selections = editor.selections.filter(selection => !selection.isEmpty).sort((a, b) => a.start.compareTo(b.start));
         if (selections.length) {
             const phrases = selections.flatMap(selection => readablePhrases(document.getText(selection), format, document.offsetAt(selection.start)));
             return { kind: 'file', name, selected: true, document, phrases: TextPlayer._announced('fragment', phrases, name, selections[0].start.line + 1) };
@@ -443,7 +535,7 @@ export class TextPlayer {
 
     async _refresh() {
         const run = ++this._refreshRun;
-        const file = this._fileTarget(this.editorFor());
+        const file = await this._activeFile();
         const clipboard = this.source === 'clipboard' ? await this._clipboardTarget().catch(() => null) : null;
         if (run !== this._refreshRun) return;
         this._file = file;
@@ -464,12 +556,21 @@ export class TextPlayer {
         this._refresh();
     }
 
+    /** The time follows the active tab; reading a preview ends with its tab, as a file with its document. */
+    _onTabs() {
+        this._schedule();
+        const target = this._reading?.target;
+        if (!target?.preview) return;
+        const open = vscode.window.tabGroups.all.some(group => group.tabs.some(tab => isPreviewTab(tab) && labelNames(tab.label, target.document.uri)));
+        if (!open) this.stop();
+    }
+
     /**
      * The text of the document being read changed: the phrases keep to their places.
      * @param {vscode.TextDocumentChangeEvent} event
      */
     _onEdit(event) {
-        if (event.document === this.editorFor()?.document) this._schedule();
+        if (event.document === this._file?.document) this._schedule();
         const reading = this._reading;
         if (!reading || reading.target.document !== event.document || !event.contentChanges.length) return;
         for (const change of event.contentChanges) TextPlayer._shift(reading.target.phrases, change);
@@ -506,6 +607,10 @@ export class TextPlayer {
         if (!reading?.target.document) return;
         const { start, end } = reading.target.phrases[reading.index];
         const { document } = reading.target;
+        if (reading.target.preview) {
+            this._previewHighlight.show(document.uri, start >= 0 ? document.positionAt(start).line : -1);
+            return;
+        }
         const range = start >= 0 ? new vscode.Range(document.positionAt(start), document.positionAt(end)) : null;
         for (const editor of this._readingEditors()) {
             editor.setDecorations(this._decoration, range ? [range] : []);
@@ -514,6 +619,7 @@ export class TextPlayer {
     }
 
     _clearHighlight() {
+        this._previewHighlight.clear();
         for (const editor of this._readingEditors()) editor.setDecorations(this._decoration, []);
     }
 
