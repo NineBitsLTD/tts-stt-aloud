@@ -53,6 +53,8 @@ export class ModelDialog {
         this._source = null;
         /** @type {CatalogVoice[] | null} */
         this._voices = null;
+        /** What an entry of the catalog is called (`voice`, `model`). */
+        this._item = 'model';
         this._chosenKey = '';
         this._diskMode.addEventListener('change', () => this._showMode());
         this._catalogMode.addEventListener('change', () => this._showMode());
@@ -68,10 +70,12 @@ export class ModelDialog {
     /**
      * @param {string} title
      * @param {ModelSource} source
-     * @param {{ disk?: string, catalog?: string }} [notes] what the driver says of a file on the disk and of the catalog
+     * @param {{ disk?: string, catalog?: string, item?: string }} [notes] what the driver says of a file on the disk
+     *   and of the catalog; item: what an entry of its catalog is called (`voice`, `model` — the default)
      */
     open(title, source, notes = {}) {
         this._title.textContent = title;
+        this._item = notes.item || 'model';
         this._diskNote.textContent = notes.disk ?? '';
         this._catalogNote.textContent = notes.catalog ?? '';
         this._source = source;
@@ -102,7 +106,7 @@ export class ModelDialog {
     }
 
     async _loadCatalog() {
-        this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: 'Loading the list of voices…' }));
+        this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: `Loading the list of ${this._item}s…` }));
         try {
             this._voices = await this._source.catalog();
             this._renderList();
@@ -116,7 +120,7 @@ export class ModelDialog {
         const query = this._filter.value.trim().toLowerCase();
         const shown = this._voices.filter(voice => !query || `${voice.key} ${voice.language} ${voice.lang.replace('_', '-')}`.toLowerCase().includes(query));
         if (!shown.length) {
-            this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: 'No voice matches' }));
+            this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: `No ${this._item} matches` }));
             return;
         }
         this._list.replaceChildren(...shown.map((voice) => {

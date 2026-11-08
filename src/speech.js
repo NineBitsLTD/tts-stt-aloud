@@ -6,8 +6,8 @@ import { SpeechSection } from './speech/SpeechSection';
 /**
  * The webview of the speech side bar (`SpeechPanel` on the host): the TTS and STT sections. The host
  * sends the state of the settings (`state`), the voices of the TTS driver (`voices`), the levels of
- * the sound (`level`), what the microphone does (`micState`) and what went wrong (`status`); the
- * view sends the changes.
+ * the sound (`level`), what the microphone does (`micState`), the bytes of a model being installed
+ * (`modelProgress`) and what went wrong (`status`); the view sends the changes.
  */
 const vscode = acquireVsCodeApi();
 const host = new HostRequests(message => vscode.postMessage(message));
@@ -48,6 +48,9 @@ window.addEventListener('message', (event) => {
             break;
         case 'level':
             section?.showLevel(message);
+            break;
+        case 'modelProgress':
+            section?.showModelProgress(message);
             break;
         case 'micState':
             sections.stt.setMicState(message);

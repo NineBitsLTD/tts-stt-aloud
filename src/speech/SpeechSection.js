@@ -7,7 +7,8 @@ import { VoicePicker } from './VoicePicker';
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
 /** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
 /** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes */
-/** @typedef {{ models: VoiceModel[], pending: { name: string, action: string }[] }} DriverModels the voice models of a driver, those being installed (downloading, preparing) */
+/** @typedef {{ name: string, action: string, done: number, total: number }} PendingModel a model being installed (downloading, preparing): the bytes written of the total (0: unknown) */
+/** @typedef {{ models: VoiceModel[], pending: PendingModel[] }} DriverModels the voice models of a driver, those being installed */
 /** @typedef {import('./VoicePicker').PickerVoice} PickerVoice */
 /** @typedef {{ id: string, name: string, kind: 'system' | 'preset' | 'external', url?: string, enabled: boolean }} Driver */
 /** @typedef {{ enabled: boolean, volume: number, driver: string, active?: string[], rate?: number, voice?: string, voices?: Record<string, string[]>, model?: string, language?: string }} SectionState active: the drivers speaking together (TTS); voice: the key of the voice tested */
@@ -21,6 +22,7 @@ const MODEL_TEXTS = {
         title: 'Piper voice models',
         add: 'Add voice model',
         dialog: 'Add Piper Voice Model',
+        item: 'voice',
         empty: 'No voice models yet',
         problem: 'not prepared for sherpa-onnx',
         disk: 'A Piper model with its .onnx.json next to it is copied into the storage of the extension and prepared there for sherpa-onnx (the file stays as it is); a model of sherpa-onnx (vits-piper-…, with tokens.txt next to it) is used where it is.',
@@ -30,6 +32,7 @@ const MODEL_TEXTS = {
         title: 'Whisper models',
         add: 'Add model',
         dialog: 'Add Whisper Model',
+        item: 'model',
         empty: 'No models yet',
         problem: 'not a Whisper model of sherpa-onnx, or its decoder or tokens are missing',
         disk: 'Choose the encoder of a Whisper model of sherpa-onnx (<name>-encoder.onnx or <name>-encoder.int8.onnx): its decoder and <name>-tokens.txt must be next to it; it is used where it is.',
@@ -49,6 +52,17 @@ function languageName(code) {
     } catch {
         return code;
     }
+}
+
+/**
+ * @param {number} done bytes
+ * @param {number} total bytes (0: unknown)
+ * @returns {string} "12.3 of 99.0 MB" (GB from 1 GB on: "0.45 of 1.70 GB"; "12.3 MB" without the total)
+ */
+function amountOf(done, total) {
+    const [unit, size, digits] = (total || done) >= 2 ** 30 ? ['GB', 2 ** 30, 2] : ['MB', 2 ** 20, 1];
+    const value = bytes => (bytes / size).toFixed(digits);
+    return total ? `${value(done)} of ${value(total)} ${unit}` : `${value(done)} ${unit}`;
 }
 
 /**
@@ -146,6 +160,8 @@ export class SpeechSection {
         this._modelDialog = modelDialog;
         /** @type {Record<string, DriverModels>} by driver */
         this._models = {};
+        /** @type {Map<string, HTMLElement>} what the models being installed show, by `<driver>:<name>` */
+        this._pendingMeta = new Map();
         /** @type {SectionState | null} */
         this._state = null;
         /** @type {Driver[]} */
@@ -422,6 +438,7 @@ export class SpeechSection {
 
     /** The drivers that can be offered (TTS: besides System): check boxes; the external servers with × to remove them. */
     _renderDrivers() {
+        this._pendingMeta.clear();
         const extra = this._drivers.filter(driver => driver.kind !== 'system');
         this._driverList.replaceChildren(...extra.map((driver) => {
             const box = createElement('input', { type: 'checkbox', checked: driver.enabled });
@@ -458,20 +475,44 @@ export class SpeechSection {
                     ...(problem ? [createIcon('warning'), problem] : [meta])),
                 remove);
         });
-        const pending = installing.map(({ name, action }) => createElement('li', { className: 'speech-models__item speech-models__item--pending' },
-            createElement('span', { className: 'speech-models__name', textContent: name }),
-            createElement('span', { className: 'speech-models__meta' }, createIcon('loading codicon-modifier-spin'), `${action}…`)));
+        const pending = installing.map((model) => {
+            const meta = createElement('span', { className: 'speech-models__meta' });
+            this._pendingMeta.set(`${driver.id}:${model.name}`, meta);
+            SpeechSection._showProgress(meta, model);
+            return createElement('li', { className: 'speech-models__item speech-models__item--pending' },
+                createElement('span', { className: 'speech-models__name', textContent: model.name }), meta);
+        });
         const add = createElement('button', { className: 'speech-button speech-models__add', type: 'button' }, createIcon('add'), texts.add);
         add.addEventListener('click', () => this._modelDialog.open(texts.dialog, {
             browse: () => this._host.request('browseModel', { driver: driver.id }),
             catalog: () => this._host.request('modelCatalog', { driver: driver.id }),
             add: choice => this._host.request('addModel', { driver: driver.id, ...choice }),
-        }, { disk: texts.disk, catalog: texts.catalog }));
+        }, { disk: texts.disk, catalog: texts.catalog, item: texts.item }));
         return createElement('div', { className: 'speech-models' },
             createElement('span', { className: 'speech-models__title', textContent: texts.title }),
             createElement('ul', { className: 'speech-models__list' }, ...items, ...pending,
                 ...(items.length || pending.length ? [] : [createElement('li', { className: 'speech-models__empty', textContent: texts.empty })])),
             add);
+    }
+
+    /**
+     * Shows the bytes written of a model being installed, in its line only.
+     * @param {PendingModel & { driver: string }} progress
+     */
+    showModelProgress({ driver, name, action, done, total }) {
+        const model = this._models[driver]?.pending.find(item => item.name === name);
+        if (model) Object.assign(model, { done, total });
+        const meta = this._pendingMeta.get(`${driver}:${name}`);
+        if (meta) SpeechSection._showProgress(meta, { name, action, done, total });
+    }
+
+    /**
+     * @param {HTMLElement} meta
+     * @param {PendingModel} model
+     */
+    static _showProgress(meta, { action, done, total }) {
+        meta.replaceChildren(createIcon('loading codicon-modifier-spin'), amountOf(done, total));
+        meta.title = `${action === 'preparing' ? 'Preparing' : 'Downloading'}${total ? ` ${Math.floor((done / total) * 100)}%` : ''}; the notification can cancel it`;
     }
 
     /** The voices of the active drivers, checked as in the settings (TTS). */

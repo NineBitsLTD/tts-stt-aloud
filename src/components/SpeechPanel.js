@@ -54,6 +54,7 @@ export class SpeechPanel {
                 this._postState();
                 if (store.section === 'tts') this._postVoices(false);
             })),
+            ...Object.values(this._models).map(store => store.onProgress(progress => this._post({ type: 'modelProgress', section: store.section, driver: store.driver, ...progress }))),
         );
     }
 
@@ -169,7 +170,7 @@ export class SpeechPanel {
         const settings = this._settings.get();
         const models = { tts: {}, stt: {} };
         for (const store of Object.values(this._models)) {
-            models[store.section][store.driver] = { models: await store.list(), pending: [...store.pending].map(([name, action]) => ({ name, action })) };
+            models[store.section][store.driver] = { models: await store.list(), pending: [...store.pending].map(([name, pending]) => ({ name, ...pending })) };
         }
         const recognition = await this._stt.recognition();
         this._post({

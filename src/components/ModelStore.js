@@ -20,7 +20,12 @@ import * as vscode from 'vscode';
  *
  * @typedef {{ signal: AbortSignal, onBytes: (count: number) => void, transform?: (part: string) => Promise<void> }} SaveOptions
  *   transform: changes a file before it is renamed
+ * @typedef {{ action: 'downloading' | 'preparing', done: number, total: number }} PendingModel a model being
+ *   installed: the bytes written of the total (0: unknown)
  */
+
+/** How often the bytes written of a model being installed are told (ms). */
+const PROGRESS_INTERVAL = 250;
 
 /**
  * @param {string} path
@@ -97,16 +102,21 @@ export class ModelStore {
         this.driver = driver;
         this.label = label;
         this.folder = join(context.globalStorageUri.fsPath, driver);
-        /** @type {Map<string, 'downloading' | 'preparing'>} the models being installed into the storage */
+        /** @type {Map<string, PendingModel>} the models being installed into the storage, by name */
         this.pending = new Map();
         /** @type {vscode.EventEmitter<void>} */
         this._changed = new vscode.EventEmitter();
         /** Installing a model began or ended. */
         this.onDidChange = this._changed.event;
+        /** @type {vscode.EventEmitter<PendingModel & { name: string }>} */
+        this._progress = new vscode.EventEmitter();
+        /** The bytes written of a model being installed, every `PROGRESS_INTERVAL` at most. */
+        this.onProgress = this._progress.event;
     }
 
     dispose() {
         this._changed.dispose();
+        this._progress.dispose();
     }
 
     /** @returns {string[]} the paths of the settings */
@@ -193,7 +203,7 @@ export class ModelStore {
      *   folder: the path of the model
      */
     install(name, action, total, write) {
-        this.pending.set(name, action);
+        this.pending.set(name, { action, done: 0, total });
         this._changed.fire();
         const title = `${action === 'downloading' ? 'Downloading' : 'Preparing'} the ${this.label} ${name}`;
         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title, cancellable: true }, (progress, token) => this._write(name, total, write, progress, token))
@@ -221,10 +231,17 @@ export class ModelStore {
         token.onCancellationRequested(() => abort.abort());
         const folder = join(this.folder, name);
         const sum = total || 1;
+        const pending = this.pending.get(name);
         let done = 0;
+        let told = 0;
         const onBytes = (count) => {
             done += count;
             progress.report({ increment: (count / sum) * 100, message: `${Math.round((done / sum) * 100)}% of ${(sum / 2 ** 20).toFixed(0)} MB` });
+            if (!pending) return;
+            pending.done = done;
+            if (Date.now() - told < PROGRESS_INTERVAL) return;
+            told = Date.now();
+            this._progress.fire({ name, ...pending });
         };
         try {
             return await write(folder, { signal: abort.signal, onBytes });

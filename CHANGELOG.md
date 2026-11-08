@@ -2,6 +2,11 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.3.2]
+
+- The dialog adding a Whisper model says "Loading the list of models…" and "No model matches" (it said voices, as for Piper)
+- A model being downloaded or prepared (Piper voices, Whisper models) shows a spinner and how much is written of how much in the list ("12.3 of 60.3 MB", "0.45 of 1.70 GB") instead of "downloading…"
+
 ## [1.3.1]
 
 - Whisper: distil-large-v3 is English only (Distil-Whisper is distilled on English speech), no longer listed as multilingual; a Distil-Whisper model offers English only in Language whatever its metadata says. The note under the catalog says that all the models without .en are multilingual (99 languages)
