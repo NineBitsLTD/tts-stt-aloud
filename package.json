@@ -2,7 +2,7 @@
   "name": "tts-stt-md-aloud",
   "displayName": "TTS / STT MD Aloud",
   "description": "Markdown preview that translates the text and reads it aloud; speech settings for all of VS Code in the side bar with system and Piper voices (sherpa-onnx); a formatted view of JSON files",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "publisher": "ninebits",
   "license": "SEE LICENSE IN COPYING",
   "icon": "resources/icon.png",
@@ -204,42 +204,42 @@
         {
           "command": "tts-stt-md-aloud.dictate",
           "when": "config.ttsSttMdAloud.stt.enabled && !ttsSttMdAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@1"
+          "group": "navigation@-1002"
         },
         {
           "command": "tts-stt-md-aloud.stopDictation",
           "when": "config.ttsSttMdAloud.stt.enabled && ttsSttMdAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@1"
+          "group": "navigation@-1002"
         },
         {
           "command": "tts-stt-md-aloud.playerPlay",
           "when": "config.ttsSttMdAloud.tts.enabled && !ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@2"
+          "group": "navigation@-1005"
         },
         {
           "command": "tts-stt-md-aloud.playerBack",
           "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@3"
+          "group": "navigation@-1006"
         },
         {
           "command": "tts-stt-md-aloud.playerPause",
           "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && !ttsSttMdAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@4"
+          "group": "navigation@-1005"
         },
         {
           "command": "tts-stt-md-aloud.playerResume",
           "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && ttsSttMdAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@4"
+          "group": "navigation@-1005"
         },
         {
           "command": "tts-stt-md-aloud.playerForward",
           "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@5"
+          "group": "navigation@-1004"
         },
         {
           "command": "tts-stt-md-aloud.playerStop",
           "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
-          "group": "navigation@6"
+          "group": "navigation@-1003"
         }
       ],
       "commandPalette": [

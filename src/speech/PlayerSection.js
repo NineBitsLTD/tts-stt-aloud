@@ -36,7 +36,7 @@ export class PlayerSection {
                 createElement('span', { className: 'speech-section__hint', textContent: 'Read aloud and dictate' })),
             createElement('div', { className: 'speech-section__body' },
                 createElement('div', { className: 'speech-row' }, createElement('span', { className: 'speech-row__label' }, createIcon('file-text'), 'Source'), this._source),
-                createElement('div', { className: 'speech-player__controls' }, this._record, this._play, this._back, this._pause, this._forward, this._stop, this._time),
+                createElement('div', { className: 'speech-player__controls' }, this._back, this._play, this._pause, this._forward, this._stop, this._record, this._time),
                 this._phrase,
                 this._note));
     }

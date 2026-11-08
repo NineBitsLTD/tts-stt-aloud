@@ -2,6 +2,10 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.6.1]
+
+- The buttons of the player come first in the editor title, in one block: the toolbar shows 9 actions at most, and in a Markdown file Stop went to the `…` menu. Record is next to Play / Stop, in the editor title and in the side bar
+
 ## [1.6.0]
 
 - The package (VSIX) is distributed under the GNU GPL, version 3 or later, because it holds piper-phonemize and espeak-ng (`COPYING`); the source code of the repository stays under the MIT license. `THIRD-PARTY-NOTICES.md` lists the components of the package with their licenses (`npm run notices`)
