@@ -1,4 +1,5 @@
 import { createElement, createIcon } from './createElement';
+import { t } from './t';
 
 /** @typedef {{ id: string, name: string }} PickedDriver */
 
@@ -48,8 +49,8 @@ export class DriverPicker {
         this._drivers = drivers;
         this._active = new Set(active.filter(id => drivers.some(driver => driver.id === id)));
         const names = drivers.filter(driver => this._active.has(driver.id)).map(driver => driver.name);
-        this._current.textContent = names.join(', ') || 'No driver';
-        this._toggle.title = names.length > 1 ? `${names.join(', ')} speak together: their voices are in one list` : this._title;
+        this._current.textContent = names.join(', ') || t('No driver');
+        this._toggle.title = names.length > 1 ? t('{0} speak together: their voices are in one list', names.join(', ')) : this._title;
         this._render();
     }
 
@@ -72,7 +73,7 @@ export class DriverPicker {
                 this._onChange(this._drivers.filter(item => this._active.has(item.id)).map(item => item.id));
             });
             return createElement('li', { className: 'speech-checklist__item', role: 'option', ariaSelected: String(checked) },
-                createElement('label', { className: 'speech-checklist__label', title: checked && last ? 'At least one driver speaks' : `${driver.name}: its voices in the list` },
+                createElement('label', { className: 'speech-checklist__label', title: checked && last ? t('At least one driver speaks') : t('{0}: its voices in the list', driver.name) },
                     box, createElement('span', { textContent: driver.name })));
         }));
     }

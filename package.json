@@ -1,8 +1,8 @@
 {
   "name": "tts-stt-aloud",
   "displayName": "TTS / STT Aloud",
-  "description": "Text to speech and speech to text for all of VS Code: a player in every text editor (reads the text or the clipboard aloud, dictates at the cursor), system and Piper voices, Whisper recognition (sherpa-onnx), settings in the side bar and an API for other extensions; a formatted view of JSON files",
-  "version": "2.0.0",
+  "description": "%description%",
+  "version": "2.1.0",
   "publisher": "ninebits",
   "license": "SEE LICENSE IN COPYING",
   "icon": "resources/icon.png",
@@ -38,6 +38,7 @@
     "workspace"
   ],
   "main": "dist/extension.cjs",
+  "l10n": "./l10n",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -53,95 +54,95 @@
         {
           "type": "webview",
           "id": "tts-stt-aloud.speech",
-          "name": "Speech"
+          "name": "%view.speech%"
         }
       ]
     },
     "commands": [
       {
         "command": "tts-stt-aloud.openFormattedJson",
-        "title": "Open Formatted JSON",
+        "title": "%cmd.openFormattedJson%",
         "category": "TTS / STT",
         "icon": "$(file-text)"
       },
       {
         "command": "tts-stt-aloud.openRawJson",
-        "title": "Open as Raw JSON",
+        "title": "%cmd.openRawJson%",
         "category": "TTS / STT",
         "icon": "$(file-code)"
       },
       {
         "command": "tts-stt-aloud.speak",
-        "title": "Speak Text",
+        "title": "%cmd.speak%",
         "category": "TTS / STT"
       },
       {
         "command": "tts-stt-aloud.stopSpeaking",
-        "title": "Stop Speaking",
+        "title": "%cmd.stopSpeaking%",
         "category": "TTS / STT"
       },
       {
         "command": "tts-stt-aloud.voices",
-        "title": "Voices Offered to Extensions",
+        "title": "%cmd.voices%",
         "category": "TTS / STT"
       },
       {
         "command": "tts-stt-aloud.record",
-        "title": "Record Speech",
+        "title": "%cmd.record%",
         "category": "TTS / STT"
       },
       {
         "command": "tts-stt-aloud.stopRecording",
-        "title": "Stop Recording Speech",
+        "title": "%cmd.stopRecording%",
         "category": "TTS / STT"
       },
       {
         "command": "tts-stt-aloud.playerPlay",
-        "title": "Read Aloud",
+        "title": "%cmd.playerPlay%",
         "category": "TTS / STT",
         "icon": "$(play)"
       },
       {
         "command": "tts-stt-aloud.playerPause",
-        "title": "Pause Reading",
+        "title": "%cmd.playerPause%",
         "category": "TTS / STT",
         "icon": "$(debug-pause)"
       },
       {
         "command": "tts-stt-aloud.playerResume",
-        "title": "Resume Reading",
+        "title": "%cmd.playerResume%",
         "category": "TTS / STT",
         "icon": "$(play)"
       },
       {
         "command": "tts-stt-aloud.playerBack",
-        "title": "Previous Phrase",
+        "title": "%cmd.playerBack%",
         "category": "TTS / STT",
         "icon": "$(debug-reverse-continue)",
         "enablement": "ttsSttAloud.playerHasPrevious"
       },
       {
         "command": "tts-stt-aloud.playerForward",
-        "title": "Next Phrase",
+        "title": "%cmd.playerForward%",
         "category": "TTS / STT",
         "icon": "$(debug-continue)",
         "enablement": "ttsSttAloud.playerHasNext"
       },
       {
         "command": "tts-stt-aloud.playerStop",
-        "title": "Stop Reading",
+        "title": "%cmd.playerStop%",
         "category": "TTS / STT",
         "icon": "$(debug-stop)"
       },
       {
         "command": "tts-stt-aloud.dictate",
-        "title": "Dictate into the Editor",
+        "title": "%cmd.dictate%",
         "category": "TTS / STT",
         "icon": "$(record)"
       },
       {
         "command": "tts-stt-aloud.stopDictation",
-        "title": "Stop Dictation",
+        "title": "%cmd.stopDictation%",
         "category": "TTS / STT",
         "icon": "$(stop-circle)"
       }
@@ -270,7 +271,7 @@
           "default": true,
           "scope": "application",
           "order": 1,
-          "description": "Text to speech: reading text editors aloud and the speech asked for by other extensions."
+          "description": "%config.tts.enabled%"
         },
         "ttsSttAloud.tts.volume": {
           "type": "number",
@@ -279,7 +280,7 @@
           "maximum": 100,
           "scope": "application",
           "order": 2,
-          "description": "Volume of the speech, in % of the volume set on the computer."
+          "description": "%config.tts.volume%"
         },
         "ttsSttAloud.tts.rate": {
           "type": "number",
@@ -288,7 +289,7 @@
           "maximum": 2,
           "scope": "application",
           "order": 3,
-          "description": "Speed of the speech (1 is the normal speed)."
+          "description": "%config.tts.rate%"
         },
         "ttsSttAloud.tts.activeDrivers": {
           "type": "array",
@@ -300,7 +301,7 @@
           ],
           "scope": "application",
           "order": 4,
-          "markdownDescription": "Drivers that speak together: `system` and drivers added to `#ttsSttAloud.tts.drivers#`; their voices are offered together, each phrase is spoken by the driver of its voice."
+          "markdownDescription": "%config.tts.activeDrivers%"
         },
         "ttsSttAloud.tts.drivers": {
           "type": "array",
@@ -310,7 +311,7 @@
           "default": [],
           "scope": "application",
           "order": 5,
-          "markdownDescription": "Drivers offered besides System: `piper`, `silero`, `external:<server name>`."
+          "markdownDescription": "%config.tts.drivers%"
         },
         "ttsSttAloud.tts.servers": {
           "type": "array",
@@ -332,14 +333,14 @@
           "default": [],
           "scope": "application",
           "order": 6,
-          "description": "External TTS servers (their keys are kept in the secret storage of VS Code)."
+          "description": "%config.tts.servers%"
         },
         "ttsSttAloud.tts.voice": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 7,
-          "description": "The voice chosen in the side bar (the voice test)."
+          "description": "%config.tts.voice%"
         },
         "ttsSttAloud.tts.voices": {
           "type": "object",
@@ -352,7 +353,7 @@
           "default": {},
           "scope": "application",
           "order": 8,
-          "description": "Checked voices by driver: picked automatically for reading aloud and offered to other extensions."
+          "description": "%config.tts.voices%"
         },
         "ttsSttAloud.tts.models": {
           "type": "object",
@@ -365,14 +366,14 @@
           "default": {},
           "scope": "application",
           "order": 9,
-          "description": "Files of the voice models by driver (Piper: .onnx files prepared for sherpa-onnx, with tokens.txt next to them), chosen on the disk or downloaded in the side bar."
+          "description": "%config.tts.models%"
         },
         "ttsSttAloud.stt.enabled": {
           "type": "boolean",
           "default": false,
           "scope": "application",
           "order": 11,
-          "description": "Speech to text: lets other extensions record the microphone. The microphone test of the side bar works either way."
+          "description": "%config.stt.enabled%"
         },
         "ttsSttAloud.stt.volume": {
           "type": "number",
@@ -381,14 +382,14 @@
           "maximum": 200,
           "scope": "application",
           "order": 12,
-          "description": "Gain of the microphone signal, in % (100 is the signal as recorded)."
+          "description": "%config.stt.volume%"
         },
         "ttsSttAloud.stt.driver": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 13,
-          "markdownDescription": "Driver of speech recognition, one of `#ttsSttAloud.stt.drivers#`; empty or not offered: the first of them."
+          "markdownDescription": "%config.stt.driver%"
         },
         "ttsSttAloud.stt.drivers": {
           "type": "array",
@@ -400,7 +401,7 @@
           ],
           "scope": "application",
           "order": 14,
-          "markdownDescription": "Drivers of speech recognition offered: `whisper`, `external:<server name>`."
+          "markdownDescription": "%config.stt.drivers%"
         },
         "ttsSttAloud.stt.servers": {
           "type": "array",
@@ -422,7 +423,7 @@
           "default": [],
           "scope": "application",
           "order": 15,
-          "description": "External STT servers (their keys are kept in the secret storage of VS Code)."
+          "description": "%config.stt.servers%"
         },
         "ttsSttAloud.stt.models": {
           "type": "object",
@@ -435,21 +436,21 @@
           "default": {},
           "scope": "application",
           "order": 16,
-          "description": "Files of the models by driver (Whisper: the encoder of a model of sherpa-onnx, its decoder and tokens next to it), chosen on the disk or downloaded in the side bar."
+          "description": "%config.stt.models%"
         },
         "ttsSttAloud.stt.model": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 17,
-          "description": "The model that recognizes speech (the path of a Whisper encoder of ttsSttAloud.stt.models; empty: the first ready one)."
+          "description": "%config.stt.model%"
         },
         "ttsSttAloud.stt.language": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 18,
-          "description": "Language of recognition: empty — Whisper detects it; \"ui\" — the language of VS Code; else a language code (ru, uk, en, …)."
+          "description": "%config.stt.language%"
         }
       }
     }

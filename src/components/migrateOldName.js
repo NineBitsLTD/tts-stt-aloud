@@ -2,6 +2,8 @@ import { mkdir, readdir, rename, rmdir, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import * as vscode from 'vscode';
 
+const t = vscode.l10n.t;
+
 /** What the extension was called before version 2. */
 const OLD_ID = 'ninebits.tts-stt-md-aloud';
 const OLD_SECTION = 'ttsSttMdAloud';
@@ -84,6 +86,6 @@ export async function migrateOldName(context) {
         await moveSettings(context, oldStorage, storage);
         await context.globalState.update(DONE, true);
     } catch (error) {
-        vscode.window.showWarningMessage(`The settings and models of TTS / STT MD Aloud could not be brought over: ${error?.message || error}`);
+        vscode.window.showWarningMessage(t('The settings and models of TTS / STT MD Aloud could not be brought over: {0}', error?.message || error));
     }
 }

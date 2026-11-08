@@ -4,6 +4,8 @@ import { AudioPlayer, LEVEL_INTERVAL } from './AudioPlayer';
 import { DEVICE_PRIORITY, DeviceLock } from './DeviceLock';
 import { MicRecorder } from './MicRecorder';
 
+const t = vscode.l10n.t;
+
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./WhisperRecognizer').WhisperRecognizer} WhisperRecognizer */
 /** @typedef {import('./MicRecorder').Recording} Recording */
@@ -123,7 +125,7 @@ export class SpeechToText {
      * @returns {Promise<Recording>}
      */
     async listen(limits = {}, owner = 'api', { keep = false } = {}) {
-        if (!this._settings.get().stt.enabled) throw new Error('Speech to text is off: turn STT on in the TTS / STT side bar to let extensions use the microphone.');
+        if (!this._settings.get().stt.enabled) throw new Error(t('Speech to text is off: turn STT on in the TTS / STT side bar to let extensions use the microphone.'));
         return this._record(limitsOf(limits), owner, { keep });
     }
 
@@ -142,14 +144,14 @@ export class SpeechToText {
      */
     async recognition() {
         const { driver, model } = this._settings.get().stt;
-        if (!driver) return { id: driver, available: false, message: 'Recognition: no driver — check Whisper under Add driver, then add a model.', model: '' };
+        if (!driver) return { id: driver, available: false, message: t('Recognition: no driver — check Whisper under Add driver, then add a model.'), model: '' };
         if (driver !== 'whisper') {
-            return { id: driver, available: false, message: `Recognition: ${this._settings.driverName('stt', driver)} does not recognize speech yet; Whisper does (Add driver → Whisper).`, model: '' };
+            return { id: driver, available: false, message: t('Recognition: {0} does not recognize speech yet; Whisper does (Add driver → Whisper).', this._settings.driverName('stt', driver)), model: '' };
         }
         const missing = this._whisper.unavailable();
         if (missing) return { id: driver, available: false, message: missing, model: '' };
         const chosen = await this._whisper.model(model);
-        if (!chosen) return { id: driver, available: false, message: 'Whisper has no model ready: add one under Add driver → Whisper.', model: '' };
+        if (!chosen) return { id: driver, available: false, message: t('Whisper has no model ready: add one under Add driver → Whisper.'), model: '' };
         return { id: driver, available: true, message: '', model: chosen.name };
     }
 

@@ -2,7 +2,10 @@ import { spawn } from 'node:child_process';
 import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import * as vscode from 'vscode';
 import { WavAudio } from '../utils/WavAudio';
+
+const t = vscode.l10n.t;
 
 /** ms of audio a level of the meter stands for */
 export const LEVEL_INTERVAL = 50;
@@ -87,7 +90,7 @@ export class AudioPlayer {
             child.on('error', (error) => {
                 if (this._child === child) this._child = null;
                 if (error.code === 'ENOENT' && rest.length && run === this._run) resolve(this._spawn(rest, run, onStart));
-                else if (error.code === 'ENOENT') reject(new Error(`No audio player found (${players('').map(([name]) => name).join(', ')})`));
+                else if (error.code === 'ENOENT') reject(new Error(t('No audio player found ({0})', players('').map(([name]) => name).join(', '))));
                 else resolve(run === this._run);
             });
             child.on('close', () => {

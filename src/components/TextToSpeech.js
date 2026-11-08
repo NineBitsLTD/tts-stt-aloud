@@ -6,6 +6,8 @@ import { AudioPlayer, LEVEL_INTERVAL } from './AudioPlayer';
 import { DeviceLock, priorityOf } from './DeviceLock';
 import { SystemSpeech } from './SystemSpeech';
 
+const t = vscode.l10n.t;
+
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./PiperSpeech').PiperSpeech} PiperSpeech */
 /**
@@ -314,11 +316,11 @@ export class TextToSpeech {
         if (id === 'system') return { id, name, available: true, message: '' };
         if (id === 'piper') {
             const message = this._piper.unavailable()
-                || ((await this._piper.voices()).length ? '' : 'Piper has no voice model ready for sherpa-onnx: add one under Add driver → Piper.');
+                || ((await this._piper.voices()).length ? '' : t('Piper has no voice model ready for sherpa-onnx: add one under Add driver → Piper.'));
             return { id, name, available: !message, message };
         }
-        const message = id.startsWith('external:') ? `${name}: speaking through external servers is not supported yet.`
-            : `${name} is not installed yet: its models and tools come in a later version.`;
+        const message = id.startsWith('external:') ? t('{0}: speaking through external servers is not supported yet.', name)
+            : t('{0} is not installed yet: its models and tools come in a later version.', name);
         return { id, name, available: false, message };
     }
 

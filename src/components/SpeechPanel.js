@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { createNonce } from '../utils/createNonce';
 import { exists } from './ModelStore';
 
+const t = vscode.l10n.t;
+
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
 /** @typedef {import('./SpeechToText').SpeechToText} SpeechToText */
@@ -168,8 +170,8 @@ export class SpeechPanel {
      */
     async _removeServer(section, id) {
         const name = this._settings.driverName(section, id);
-        const answer = await vscode.window.showWarningMessage(`Remove the ${section.toUpperCase()} server ${name}?`, { modal: true, detail: 'Its address and key are removed from VS Code.' }, 'Remove');
-        if (answer === 'Remove') await this._settings.removeServer(section, id);
+        const answer = await vscode.window.showWarningMessage(t('Remove the {0} server {1}?', section.toUpperCase(), name), { modal: true, detail: t('Its address and key are removed from VS Code.') }, t('Remove'));
+        if (answer === t('Remove')) await this._settings.removeServer(section, id);
     }
 
     /** The settings changed: the view follows, the voices when the driver changed. */
@@ -219,7 +221,7 @@ export class SpeechPanel {
     async _revealModel(store, path) {
         if (!store?.paths().includes(path)) return;
         if (!(await exists(path))) {
-            vscode.window.showWarningMessage(`The model is not there any more: ${path}`);
+            vscode.window.showWarningMessage(t('The model is not there any more: {0}', path));
             return;
         }
         await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path));
@@ -227,7 +229,7 @@ export class SpeechPanel {
 
     /** @returns {string} what showing a file in the file manager is called on this system, as VS Code calls it */
     static _revealLabel() {
-        return { darwin: 'Reveal in Finder', win32: 'Reveal in File Explorer' }[process.platform] ?? 'Open Containing Folder';
+        return { darwin: t('Reveal in Finder'), win32: t('Reveal in File Explorer') }[process.platform] ?? t('Open Containing Folder');
     }
 
     async _postState() {
@@ -246,7 +248,7 @@ export class SpeechPanel {
             revealLabel: SpeechPanel._revealLabel(),
             notes: {
                 tts: (await this._tts.status()).message,
-                stt: [settings.stt.enabled ? 'Other extensions may use the microphone.' : 'Other extensions may not use the microphone (the test works anyway).', recognition.message].filter(Boolean).join(' '),
+                stt: [settings.stt.enabled ? t('Other extensions may use the microphone.') : t('Other extensions may not use the microphone (the test works anyway).'), recognition.message].filter(Boolean).join(' '),
             },
         });
     }
@@ -283,7 +285,7 @@ export class SpeechPanel {
             `font-src ${source}`,
         ].join('; ');
         return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${vscode.env.language}">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
@@ -294,6 +296,7 @@ export class SpeechPanel {
 </head>
 <body>
 <main class="speech"></main>
+<script nonce="${nonce}">globalThis.speechBundle = ${JSON.stringify(vscode.l10n.bundle ?? {}).replace(/</g, '\\u003c')};</script>
 <script nonce="${nonce}" src="${dist('js', 'speech.js')}"></script>
 </body>
 </html>`;

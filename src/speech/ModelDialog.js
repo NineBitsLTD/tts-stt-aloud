@@ -1,4 +1,5 @@
 import { createElement, createIcon } from './createElement';
+import { t } from './t';
 
 /**
  * @typedef {{ key: string, lang: string, language: string, quality: string, size: number, added: boolean }} CatalogVoice
@@ -15,11 +16,11 @@ import { createElement, createIcon } from './createElement';
  * @returns {string} the size in MB ('' : unknown)
  */
 export function megabytes(bytes) {
-    return bytes ? `${Math.max(1, Math.round(bytes / 2 ** 20))} MB` : '';
+    return bytes ? t('{0} MB', Math.max(1, Math.round(bytes / 2 ** 20))) : '';
 }
 
 /** What the dialog adds to a license, by its kind. */
-const LICENSE_NOTES = { attribution: 'credit its authors', sharealike: 'credit its authors, share alike', noncommercial: 'non-commercial use only', copyleft: 'copyleft', custom: 'read its terms before use' };
+const LICENSE_NOTES = { attribution: t('credit its authors'), sharealike: t('credit its authors, share alike'), noncommercial: t('non-commercial use only'), copyleft: 'copyleft', custom: t('read its terms before use') };
 /** The kinds of license the dialog warns of. */
 const WARNED_LICENSES = new Set(['noncommercial', 'copyleft', 'custom', 'unknown']);
 
@@ -36,21 +37,21 @@ export class ModelDialog {
         this._diskMode = createElement('input', { type: 'radio', name: 'model-source', value: 'disk', checked: true });
         this._catalogMode = createElement('input', { type: 'radio', name: 'model-source', value: 'catalog' });
         const mode = (input, label) => createElement('label', { className: 'speech-dialog__mode' }, input, label);
-        this._path = createElement('input', { className: 'speech-dialog__input speech-dialog__path', type: 'text', readOnly: true, placeholder: 'No file chosen' });
-        const browse = createElement('button', { className: 'speech-button', type: 'button' }, createIcon('folder-opened'), 'Browse…');
+        this._path = createElement('input', { className: 'speech-dialog__input speech-dialog__path', type: 'text', readOnly: true, placeholder: t('No file chosen') });
+        const browse = createElement('button', { className: 'speech-button', type: 'button' }, createIcon('folder-opened'), t('Browse…'));
         this._disk = createElement('div', { className: 'speech-dialog__disk' }, this._path, browse,
             this._diskNote = createElement('p', { className: 'speech-dialog__note speech-dialog__note--wide' }));
-        this._filter = createElement('input', { className: 'speech-dialog__input', type: 'search', placeholder: 'Filter by name or language', spellcheck: false });
+        this._filter = createElement('input', { className: 'speech-dialog__input', type: 'search', placeholder: t('Filter by name or language'), spellcheck: false });
         this._list = createElement('ul', { className: 'speech-dialog__catalog-list', role: 'listbox' });
         this._license = createElement('p', { className: 'speech-dialog__license' });
         this._catalogPanel = createElement('div', { className: 'speech-dialog__catalog', hidden: true }, this._filter, this._list, this._license,
             this._catalogNote = createElement('p', { className: 'speech-dialog__note' }));
         this._error = createElement('p', { className: 'speech-dialog__error', role: 'alert' });
         this._ok = createElement('button', { className: 'speech-button speech-button--primary', type: 'submit', textContent: 'OK' });
-        const cancel = createElement('button', { className: 'speech-button', type: 'button', textContent: 'Cancel' });
+        const cancel = createElement('button', { className: 'speech-button', type: 'button', textContent: t('Cancel') });
         this._form = createElement('form', { className: 'speech-dialog__form', noValidate: true },
             this._title,
-            createElement('div', { className: 'speech-dialog__modes', role: 'radiogroup' }, mode(this._diskMode, 'File on the disk'), mode(this._catalogMode, 'Download')),
+            createElement('div', { className: 'speech-dialog__modes', role: 'radiogroup' }, mode(this._diskMode, t('File on the disk')), mode(this._catalogMode, t('Download'))),
             this._disk, this._catalogPanel, this._error,
             createElement('div', { className: 'speech-dialog__buttons' }, cancel, this._ok));
         this._dialog = createElement('dialog', { className: 'speech-dialog speech-dialog--wide' }, this._form);
@@ -60,8 +61,8 @@ export class ModelDialog {
         this._source = null;
         /** @type {CatalogVoice[] | null} */
         this._voices = null;
-        /** What an entry of the catalog is called (`voice`, `model`). */
-        this._item = 'model';
+        /** What the driver says of its catalog. */
+        this._notes = {};
         this._chosenKey = '';
         this._diskMode.addEventListener('change', () => this._showMode());
         this._catalogMode.addEventListener('change', () => this._showMode());
@@ -77,12 +78,12 @@ export class ModelDialog {
     /**
      * @param {string} title
      * @param {ModelSource} source
-     * @param {{ disk?: string, catalog?: string, item?: string }} [notes] what the driver says of a file on the disk
-     *   and of the catalog; item: what an entry of its catalog is called (`voice`, `model` — the default)
+     * @param {{ disk?: string, catalog?: string, loading?: string, noMatch?: string }} [notes] what the driver says of a
+     *   file on the disk, of the catalog, while its catalog loads and when the filter finds nothing
      */
     open(title, source, notes = {}) {
         this._title.textContent = title;
-        this._item = notes.item || 'model';
+        this._notes = notes;
         this._diskNote.textContent = notes.disk ?? '';
         this._catalogNote.textContent = notes.catalog ?? '';
         this._source = source;
@@ -114,7 +115,7 @@ export class ModelDialog {
     }
 
     async _loadCatalog() {
-        this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: `Loading the list of ${this._item}s…` }));
+        this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: this._notes.loading ?? '' }));
         try {
             this._voices = await this._source.catalog();
             this._renderList();
@@ -128,7 +129,7 @@ export class ModelDialog {
         const query = this._filter.value.trim().toLowerCase();
         const shown = this._voices.filter(voice => !query || `${voice.key} ${voice.language} ${voice.lang.replace('_', '-')}`.toLowerCase().includes(query));
         if (!shown.length) {
-            this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: `No ${this._item} matches` }));
+            this._list.replaceChildren(createElement('li', { className: 'speech-dialog__catalog-empty', textContent: this._notes.noMatch ?? '' }));
             return;
         }
         this._list.replaceChildren(...shown.map((voice) => {
@@ -136,10 +137,10 @@ export class ModelDialog {
             const item = createElement('li', {
                 className: `speech-dialog__catalog-item${chosen ? ' speech-dialog__catalog-item--chosen' : ''}${voice.added ? ' speech-dialog__catalog-item--added' : ''}`,
                 role: 'option', ariaSelected: String(chosen), ariaDisabled: String(voice.added), tabIndex: voice.added ? -1 : 0,
-                title: voice.added ? `${voice.key} is added already` : voice.language,
+                title: voice.added ? t('{0} is added already', voice.key) : voice.language,
             },
             createElement('span', { className: 'speech-dialog__catalog-name', textContent: voice.key }),
-            createElement('span', { className: 'speech-dialog__catalog-meta', textContent: voice.added ? 'added' : megabytes(voice.size) }));
+            createElement('span', { className: 'speech-dialog__catalog-meta', textContent: voice.added ? t('added') : megabytes(voice.size) }));
             if (!voice.added) {
                 const choose = () => {
                     this._chosenKey = voice.key;
@@ -166,7 +167,7 @@ export class ModelDialog {
      */
     async _showLicense(key) {
         this._license.classList.remove('speech-dialog__license--warning');
-        this._license.textContent = this._source.license ? 'Checking its license…' : '';
+        this._license.textContent = this._source.license ? t('Checking its license…') : '';
         const license = await this._source.license?.(key)?.catch(() => null);
         if (key !== this._chosenKey) return;
         this._license.textContent = license ? ModelDialog._licenseLine(license) : '';
@@ -179,8 +180,8 @@ export class ModelDialog {
      * @returns {string} what the dialog says of it
      */
     static _licenseLine({ label, kind }) {
-        if (kind === 'unknown') return 'The license of its dataset is not stated: check it before commercial use.';
-        return `License of its dataset: ${label}${LICENSE_NOTES[kind] ? ` — ${LICENSE_NOTES[kind]}` : ''}.`;
+        if (kind === 'unknown') return t('The license of its dataset is not stated: check it before commercial use.');
+        return LICENSE_NOTES[kind] ? t('License of its dataset: {0} — {1}.', t(label), LICENSE_NOTES[kind]) : t('License of its dataset: {0}.', t(label));
     }
 
     /** OK: when a file or a voice is chosen. */

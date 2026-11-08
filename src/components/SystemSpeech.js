@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
+import * as vscode from 'vscode';
 import { temporaryWav } from './AudioPlayer';
+
+const t = vscode.l10n.t;
 
 /**
  * @typedef {object} SystemVoice
@@ -30,7 +33,7 @@ function run(command, args, env = undefined) {
         let out = '';
         child.stdout.on('data', (chunk) => { out += chunk; });
         child.on('error', reject);
-        child.on('close', code => (code === 0 ? resolve(out) : reject(new Error(`${command} exited with ${code}`))));
+        child.on('close', code => (code === 0 ? resolve(out) : reject(new Error(t('{0} exited with {1}', command, code)))));
     });
 }
 

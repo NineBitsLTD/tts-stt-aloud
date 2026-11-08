@@ -2,6 +2,11 @@
 
 All notable changes to the "tts-stt-aloud" extension are documented in this file.
 
+## [2.1.0]
+
+- Russian and Ukrainian localization of the whole interface, by the display language of VS Code: the side bar, commands, settings, notifications and messages, with the names of languages and decimal marks of the language
+- The license of a voice and the warnings in the list of models wrap instead of being cut off
+
 ## [2.0.0]
 
 - The extension is now **TTS / STT Aloud** (`ninebits.tts-stt-aloud`, settings `ttsSttAloud.*`, repository `tts-stt-aloud`), with the label TTS/STT on its icon. It is a new extension for VS Code: uninstall the old one (`ninebits.tts-stt-md-aloud`) after installing it. On the first start its models and user settings are brought over; the keys of external servers have to be entered again

@@ -21,6 +21,10 @@ How to use it, the requirements and how to install the extension or build it fro
 - **Several windows of VS Code** — the speaker and the microphone are shared: a speech waits while another window speaks. A speech of a higher priority (**Test voice** first, then other extensions, reading a file or the clipboard last) pauses the one being played, which says that it goes on ("Continuing to read the file") and repeats its phrase when the speaker is free; a person pressing Dictate or Test microphone stops the recording going on, an application waits for the microphone to be free.
 - **Formatted JSON** — **Open Formatted JSON** in the editor title of a `.json` / `.jsonc` file shows it indented (JSONC comments and trailing commas are left out); saving it writes the file compact, without line breaks (asked once per file and session). **Open as Raw JSON** goes back to the file as it is written, which saves it unchanged.
 
+## Languages
+
+The interface — the side bar, commands, settings and messages — is in English, Russian and Ukrainian, following the display language of VS Code. VS Code has no official Ukrainian language pack: install a community one (for example *Ukrainian Language for VS Code*) and choose it with **Configure Display Language**.
+
 ## How to use
 
 The speaker in the activity bar (the left bar of VS Code) opens the **Speech** side bar with three sections: **Player**, **TTS** (text to speech) and **STT** (speech to text). Everything below is done there unless said otherwise.
@@ -137,12 +141,12 @@ src/
                             # TextPlayer (reads editors and the clipboard aloud), Dictation (speech written at the cursor),
                             # DeviceLock (the speaker and the microphone shared by the windows of VS Code),
                             # migrateOldName (the settings and models of the old name)
-  speech/                   # side bar webview: PlayerSection, SpeechSection, VoicePicker, DriverPicker, ServerDialog, ModelDialog, HostRequests, createElement
+  speech/                   # side bar webview: PlayerSection, SpeechSection, VoicePicker, DriverPicker, ServerDialog, ModelDialog, HostRequests, t, createElement
   utils/                    # createNonce, formatJson (+ minifyJson, stripJsonc), WavAudio, pickVoice,
                             # normalizeRussian and EnglishReading (text for Russian voices, ported from claude-ai),
                             # readOnnxMetadata, loadRuntime, phraseSpans (phrases, the time of reading), guessLanguage,
                             # readablePhrases (Markdown and HTML as plain text, with their places), localeText
-  locales/                  # the translations of the texts the extension speaks: en, ru, uk
+  locales/                  # the translations of the texts the extension speaks: en, ru, uk (the interface: l10n/ and package.nls.*.json)
   scss/                     # speech.scss → compiled to dist/css/
 resources/                  # speaker.svg, the activity bar icon; icon.png, the extension icon, made by
                             # scripts/make-icon.swift from its source icon-space.svg (the icon of the universe page of gw,

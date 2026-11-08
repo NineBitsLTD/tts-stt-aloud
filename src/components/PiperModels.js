@@ -1,8 +1,11 @@
 import { appendFile, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import * as vscode from 'vscode';
 import { encodeOnnxMetadata, readOnnxMetadata } from '../utils/readOnnxMetadata';
 import { voiceLicense } from '../utils/voiceLicense';
 import { copy, download, exists, ModelStore } from './ModelStore';
+
+const t = vscode.l10n.t;
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('../utils/voiceLicense').VoiceLicense} VoiceLicense */
@@ -92,7 +95,7 @@ export class PiperModels extends ModelStore {
      * @param {SpeechSettings} settings
      */
     constructor(context, settings) {
-        super(context, settings, { section: 'tts', driver: 'piper', label: 'Piper voice' });
+        super(context, settings, { section: 'tts', driver: 'piper', label: t('Piper voice') });
         /** @type {Promise<Record<string, any>> | null} the catalog, loaded once a session */
         this._catalog = null;
         /** @type {Map<string, Promise<VoiceLicense | null>>} the licenses of the voices of the catalog, by key */
@@ -190,7 +193,7 @@ export class PiperModels extends ModelStore {
             voices = await this._catalog;
         } catch (error) {
             this._catalog = null;
-            throw new Error(`The list of Piper voices could not be loaded: ${error?.message || error}`);
+            throw new Error(t('The list of Piper voices could not be loaded: {0}', error?.message || error));
         }
         const added = new Set(this.paths().map(path => this.nameOf(path)));
         return Object.values(voices).map((voice) => {
@@ -215,16 +218,16 @@ export class PiperModels extends ModelStore {
      * @returns {Promise<string>} why it is not added ('' : added, or its copy began)
      */
     async addFile(path) {
-        if (!/\.onnx$/i.test(path)) return 'Choose an .onnx file: a Piper voice model.';
+        if (!/\.onnx$/i.test(path)) return t('Choose an .onnx file: a Piper voice model.');
         const info = await stat(path).catch(() => null);
-        if (!info?.isFile()) return `There is no file ${path}.`;
-        if (this.paths().includes(path)) return 'This model is in the list already.';
+        if (!info?.isFile()) return t('There is no file {0}.', path);
+        if (this.paths().includes(path)) return t('This model is in the list already.');
         if (await readSherpaMeta(path) && await exists(join(dirname(path), 'tokens.txt'))) {
             await this._settings.addModel(this.section, this.driver, path);
             return '';
         }
         const config = await stat(`${path}.json`).catch(() => null);
-        if (!config?.isFile()) return `${basename(path)} cannot be prepared for sherpa-onnx: its config ${basename(path)}.json is not next to it.`;
+        if (!config?.isFile()) return t('{0} cannot be prepared for sherpa-onnx: its config {1}.json is not next to it.', basename(path), basename(path));
         const name = this.nameOf(path);
         const refused = await this.refuseName(name);
         if (refused) return refused;
@@ -245,14 +248,14 @@ export class PiperModels extends ModelStore {
     async download(key) {
         const listed = (await this.catalog()).find(item => item.key === key);
         const voice = (await this._catalog)[key];
-        if (!listed || !voice) return `There is no Piper voice ${key}.`;
-        if (this.pending.has(key)) return `${key} is being installed.`;
-        if (listed.added || await exists(join(this.folder, key))) return 'This model is in the list already.';
+        if (!listed || !voice) return t('There is no Piper voice {0}.', key);
+        if (this.pending.has(key)) return t('{0} is being installed.', key);
+        if (listed.added || await exists(join(this.folder, key))) return t('This model is in the list already.');
         const remote = suffix => Object.entries(voice.files ?? {}).find(([path]) => path.endsWith(suffix));
         const [configPath, config] = remote('.onnx.json') ?? [];
         const [modelPath, model] = remote('.onnx') ?? [];
         const [cardPath] = remote(CARD_FILE) ?? [];
-        if (!configPath || !modelPath) return `The catalog gives no model for ${key}.`;
+        if (!configPath || !modelPath) return t('The catalog gives no model for {0}.', key);
         const url = path => REPOSITORY + path.split('/').map(encodeURIComponent).join('/');
         const size = file => Number(file?.size_bytes) || 0;
         this.install(key, 'downloading', size(config) + size(model), (folder, options) => this._prepare(folder, key, {

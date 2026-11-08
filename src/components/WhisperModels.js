@@ -1,7 +1,10 @@
 import { stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import * as vscode from 'vscode';
 import { readOnnxMetadata } from '../utils/readOnnxMetadata';
 import { download, exists, ModelStore } from './ModelStore';
+
+const t = vscode.l10n.t;
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /**
@@ -70,7 +73,7 @@ export class WhisperModels extends ModelStore {
      * @param {SpeechSettings} settings
      */
     constructor(context, settings) {
-        super(context, settings, { section: 'stt', driver: 'whisper', label: 'Whisper model' });
+        super(context, settings, { section: 'stt', driver: 'whisper', label: t('Whisper model') });
         /** @type {Promise<(WhisperEntry & { files: { path: string, size: number }[] })[]> | null} the catalog, loaded once a session */
         this._catalog = null;
     }
@@ -113,7 +116,7 @@ export class WhisperModels extends ModelStore {
         const entries = await this._catalog;
         if (!entries.length) {
             this._catalog = null;
-            throw new Error('The list of Whisper models could not be loaded from Hugging Face.');
+            throw new Error(t('The list of Whisper models could not be loaded from Hugging Face.'));
         }
         const added = new Set(this.paths().map(path => this.nameOf(path)));
         return entries.map(entry => ({
@@ -129,12 +132,12 @@ export class WhisperModels extends ModelStore {
      */
     async addFile(path) {
         const files = whisperFiles(path);
-        if (!/\.onnx$/i.test(path) || !files) return 'Choose the encoder of a Whisper model of sherpa-onnx: <name>-encoder.onnx or <name>-encoder.int8.onnx.';
-        if (!(await stat(files.encoder).catch(() => null))?.isFile()) return `There is no encoder ${files.encoder}.`;
-        if (!(await readWhisperMeta(files.encoder))) return `${basename(files.encoder)} is not a Whisper model of sherpa-onnx: it has no metadata of one.`;
-        if (!(await exists(files.decoder))) return `Its decoder is not next to it: ${basename(files.decoder)}.`;
-        if (!(await exists(files.tokens))) return `Its tokens are not next to it: ${basename(files.tokens)}.`;
-        if (this.paths().includes(files.encoder)) return 'This model is in the list already.';
+        if (!/\.onnx$/i.test(path) || !files) return t('Choose the encoder of a Whisper model of sherpa-onnx: <name>-encoder.onnx or <name>-encoder.int8.onnx.');
+        if (!(await stat(files.encoder).catch(() => null))?.isFile()) return t('There is no encoder {0}.', files.encoder);
+        if (!(await readWhisperMeta(files.encoder))) return t('{0} is not a Whisper model of sherpa-onnx: it has no metadata of one.', basename(files.encoder));
+        if (!(await exists(files.decoder))) return t('Its decoder is not next to it: {0}.', basename(files.decoder));
+        if (!(await exists(files.tokens))) return t('Its tokens are not next to it: {0}.', basename(files.tokens));
+        if (this.paths().includes(files.encoder)) return t('This model is in the list already.');
         await this._settings.addModel(this.section, this.driver, files.encoder);
         return '';
     }
@@ -147,7 +150,7 @@ export class WhisperModels extends ModelStore {
     async download(key) {
         await this.catalog();
         const entry = (await this._catalog).find(item => item.key === key);
-        if (!entry) return `There is no Whisper model ${key}.`;
+        if (!entry) return t('There is no Whisper model {0}.', key);
         const refused = await this.refuseName(key);
         if (refused) return refused;
         this.install(key, 'downloading', entry.size, async (folder, options) => {
@@ -175,7 +178,7 @@ export class WhisperModels extends ModelStore {
             return {
                 key,
                 lang: english ? 'en' : 'multilingual',
-                language: english ? 'English only' : 'Multilingual: Whisper detects the language',
+                language: english ? t('English only') : t('Multilingual: Whisper detects the language'),
                 quality: key,
                 size: files.reduce((sum, file) => sum + file.size, 0),
                 added: false,

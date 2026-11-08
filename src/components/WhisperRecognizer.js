@@ -1,5 +1,8 @@
+import * as vscode from 'vscode';
 import { loadRuntime } from '../utils/loadRuntime';
 import { WavAudio } from '../utils/WavAudio';
+
+const t = vscode.l10n.t;
 
 /** @typedef {import('./WhisperModels').WhisperModels} WhisperModels */
 /** @typedef {import('./WhisperModels').WhisperModel} WhisperModel */
@@ -32,7 +35,7 @@ export class WhisperRecognizer {
             loadRuntime(this._extension, 'native/sherpa-onnx.node');
             return '';
         } catch (error) {
-            return `Whisper cannot recognize in this build for ${process.platform}-${process.arch}: sherpa-onnx is missing (${error?.message || error}).`;
+            return t('Whisper cannot recognize in this build for {0}-{1}: sherpa-onnx is missing ({2}).', process.platform, process.arch, error?.message || error);
         }
     }
 
@@ -61,9 +64,9 @@ export class WhisperRecognizer {
     async recognize(wav, { model: path, language = '' } = {}) {
         const addon = loadRuntime(this._extension, 'native/sherpa-onnx.node');
         const model = await this.model(path);
-        if (!model) throw new Error('Whisper has no model ready: add one under Add driver → Whisper.');
+        if (!model) throw new Error(t('Whisper has no model ready: add one under Add driver → Whisper.'));
         const audio = WavAudio.parse(wav);
-        if (!audio) throw new Error('The recording is not audio Whisper can read.');
+        if (!audio) throw new Error(t('The recording is not audio Whisper can read.'));
         const lang = model.multilingual && model.languages.includes(language) ? language : '';
         const recognizer = await this._recognizer(addon, model, lang);
         const stream = addon.createOfflineStream(recognizer);

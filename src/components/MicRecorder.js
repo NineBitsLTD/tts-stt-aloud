@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import * as vscode from 'vscode';
 import { WavAudio } from '../utils/WavAudio';
+
+const t = vscode.l10n.t;
 
 export const SAMPLE_RATE = 16000;
 /** ms of audio in a window: the level, the speech or silence are judged per window */
@@ -214,7 +217,7 @@ export class MicRecorder {
      * @returns {Promise<Recording>}
      */
     async record({ waitMs = 5000, maxMs = 10000, silenceMs = 1000, gain = 1, onLevel, onState } = {}) {
-        if (this._session) throw new Error('The microphone is busy: another recording is going on.');
+        if (this._session) throw new Error(t('The microphone is busy: another recording is going on.'));
         const session = { detector: new SpeechDetector({ waitMs, maxMs, silenceMs }), child: null, stop: false };
         this._session = session;
         try {
@@ -229,7 +232,7 @@ export class MicRecorder {
                 if (result.heard) break;
             }
             if (!session.stop && session.detector.state === 'waiting') {
-                throw new Error(failure || 'No recorder for the microphone: install SoX (sox) or FFmpeg (ffmpeg).');
+                throw new Error(failure || t('No recorder for the microphone: install SoX (sox) or FFmpeg (ffmpeg).'));
             }
             session.detector.stop();
             const speech = session.detector.speech();
@@ -302,8 +305,8 @@ export class MicRecorder {
                 onLevel?.(0);
                 const why = err.trim() ? `: ${err.trim().split('\n').pop()}` : '';
                 if (session.stop) resolve('done');
-                else if (heard) resolve({ message: `${name} stopped recording${why}`, heard });
-                else resolve({ message: `${name} could not record the microphone (exit code ${code})${why}`, heard });
+                else if (heard) resolve({ message: t('{0} stopped recording{1}', name, why), heard });
+                else resolve({ message: t('{0} could not record the microphone (exit code {1}){2}', name, code, why), heard });
             });
         });
     }

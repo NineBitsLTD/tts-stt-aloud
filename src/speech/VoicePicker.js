@@ -1,4 +1,5 @@
 import { createElement, createIcon } from './createElement';
+import { t } from './t';
 
 /** @typedef {import('../utils/pickVoice').Voice & { key: string, driverName?: string, checked?: boolean }} PickerVoice key: `<driver>:<name>` */
 
@@ -29,7 +30,7 @@ export class VoicePicker {
         this._count = createElement('span', { className: 'speech-voices__count' });
         this._toggle = createElement('button', { className: 'speech-voices__toggle', type: 'button', ariaHasPopup: 'listbox', ariaExpanded: 'false' },
             this._current, this._count, createIcon('chevron-down'));
-        this._filter = createElement('input', { className: 'speech-voices__filter', type: 'search', placeholder: 'Filter by name, language or driver', spellcheck: false });
+        this._filter = createElement('input', { className: 'speech-voices__filter', type: 'search', placeholder: t('Filter by name, language or driver'), spellcheck: false });
         this._list = createElement('ul', { className: 'speech-voices__list', role: 'listbox' });
         this._popup = createElement('div', { className: 'speech-voices__popup', hidden: true }, this._filter, this._list);
         this.element = createElement('div', { className: 'speech-voices' }, this._toggle, this._popup);
@@ -63,12 +64,12 @@ export class VoicePicker {
         const keys = new Set(voices.map(voice => voice.key));
         this._chosen = keys.has(chosen) ? chosen : checked.find(key => keys.has(key)) ?? voices[0]?.key ?? '';
         const voice = voices.find(item => item.key === this._chosen);
-        this._current.textContent = voice ? VoicePicker._label(voice) : 'No voices';
-        this._toggle.title = voice ? `The voice tested: ${VoicePicker._label(voice)}` : 'This driver has no voices';
+        this._current.textContent = voice ? VoicePicker._label(voice) : t('No voices');
+        this._toggle.title = voice ? t('The voice tested: {0}', VoicePicker._label(voice)) : t('This driver has no voices');
         this._toggle.disabled = !voices.length;
         const count = voices.filter(item => this._checked.has(item.key)).length;
         this._count.replaceChildren(...(count ? [createIcon('check'), String(count)] : []));
-        this._count.title = count ? `${count} checked: picked automatically and offered to other extensions` : '';
+        this._count.title = count ? t('{0} checked: picked automatically and offered to other extensions', count) : '';
         if (!voices.length) this._close();
         if (!this._popup.hidden) this._renderList();
     }
@@ -103,17 +104,17 @@ export class VoicePicker {
         const shown = [...order, ...this._sorted().filter(key => !order.includes(key))].map(key => byKey.get(key))
             .filter(voice => !query || `${voice.name} ${voice.lang.replace('_', '-')} ${voice.driverName ?? ''}`.toLowerCase().includes(query));
         if (!shown.length) {
-            this._list.replaceChildren(createElement('li', { className: 'speech-voices__empty', textContent: 'No voice matches' }));
+            this._list.replaceChildren(createElement('li', { className: 'speech-voices__empty', textContent: t('No voice matches') }));
             return;
         }
         this._list.replaceChildren(...shown.map((voice) => {
-            const box = createElement('input', { type: 'checkbox', checked: this._checked.has(voice.key), title: 'Pick this voice automatically and offer it to other extensions' });
+            const box = createElement('input', { type: 'checkbox', checked: this._checked.has(voice.key), title: t('Pick this voice automatically and offer it to other extensions') });
             box.addEventListener('change', () => {
                 if (box.checked) this._checked.add(voice.key);
                 else this._checked.delete(voice.key);
                 this._onCheck(voice.key, box.checked);
             });
-            const name = createElement('button', { className: 'speech-voices__name', type: 'button', textContent: voice.name, title: `Test with ${voice.name}${voice.driverName ? ` (${voice.driverName})` : ''}` });
+            const name = createElement('button', { className: 'speech-voices__name', type: 'button', textContent: voice.name, title: t('Test with {0}', voice.driverName ? `${voice.name} (${voice.driverName})` : voice.name) });
             name.addEventListener('click', () => {
                 this._onSelect(voice.key);
                 this._close();

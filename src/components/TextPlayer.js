@@ -6,6 +6,8 @@ import { clock, estimateReading } from '../utils/phraseSpans';
 import { DEVICE_PRIORITY } from './DeviceLock';
 import { formatOfLanguage, guessMarkup, readablePhrases } from '../utils/readablePhrases';
 
+const t = vscode.l10n.t;
+
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
 /**
@@ -233,7 +235,7 @@ export class TextPlayer {
             fileLabel: this._file ? TextPlayer._label(this._file) : '',
             canPlay: readable && this._settings.get().tts.enabled,
             time: readable ? `~${clock(this._totalOf(target.phrases))}` : '',
-            note: this._waiting && reading ? 'Waiting for the speech in another window…' : this._note(target, readable),
+            note: this._waiting && reading ? t('Waiting for the speech in another window…') : this._note(target, readable),
             waiting: this._waiting && !!reading,
             reading: reading && {
                 kind: reading.target.kind,
@@ -287,7 +289,7 @@ export class TextPlayer {
             try {
                 finished = await this._tts.speak(phrases[index].text, { ...optionsOf(phrases[index]), next: next ? { text: next.text, ...optionsOf(next) } : undefined }, this);
             } catch (error) {
-                if (run === this._run) vscode.window.showErrorMessage(`Reading aloud failed: ${error?.message || error}`);
+                if (run === this._run) vscode.window.showErrorMessage(t('Reading aloud failed: {0}', error?.message || error));
             }
             if (run !== this._run) return;
             // Stopped by someone else (another speech began, the speech was turned off)
@@ -357,7 +359,7 @@ export class TextPlayer {
      * @returns {string}
      */
     static _label(target) {
-        return target.selected ? `${target.name} (selection)` : target.name;
+        return target.selected ? t('{0} (selection)', target.name) : target.name;
     }
 
     /**
@@ -367,8 +369,8 @@ export class TextPlayer {
      */
     _note(target, readable) {
         if (readable) return '';
-        if (this.source === 'clipboard') return target ? 'The clipboard holds nothing to read.' : 'The clipboard is empty.';
-        return target ? (target.selected ? 'The selection holds nothing to read.' : 'The file holds nothing to read.') : 'Open a text file to read it.';
+        if (this.source === 'clipboard') return target ? t('The clipboard holds nothing to read.') : t('The clipboard is empty.');
+        return target ? (target.selected ? t('The selection holds nothing to read.') : t('The file holds nothing to read.')) : t('Open a text file to read it.');
     }
 
     /**
@@ -398,7 +400,7 @@ export class TextPlayer {
         if (this._clipboardRead?.text !== text) {
             this._clipboardRead = {
                 text,
-                target: text.trim() ? { kind: 'clipboard', name: 'Clipboard', selected: false, document: null, phrases: TextPlayer._announced('clipboard', readablePhrases(text, guessMarkup(text)).map(phrase => ({ ...phrase, start: -1, end: -1 }))) } : null,
+                target: text.trim() ? { kind: 'clipboard', name: t('Clipboard'), selected: false, document: null, phrases: TextPlayer._announced('clipboard', readablePhrases(text, guessMarkup(text)).map(phrase => ({ ...phrase, start: -1, end: -1 }))) } : null,
             };
         }
         return this._clipboardRead.target;

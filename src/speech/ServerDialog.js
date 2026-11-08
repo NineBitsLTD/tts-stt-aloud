@@ -1,4 +1,5 @@
 import { createElement } from './createElement';
+import { t } from './t';
 
 /**
  * @typedef {{ name: string, url: string, key: string }} ServerFields
@@ -13,14 +14,14 @@ export class ServerDialog {
     constructor() {
         const field = (label, input) => createElement('label', { className: 'speech-dialog__field' }, createElement('span', { className: 'speech-dialog__label', textContent: label }), input);
         this._title = createElement('h2', { className: 'speech-dialog__title' });
-        this._name = createElement('input', { className: 'speech-dialog__input', type: 'text', placeholder: 'My server', spellcheck: false, autocomplete: 'off' });
+        this._name = createElement('input', { className: 'speech-dialog__input', type: 'text', placeholder: t('My server'), spellcheck: false, autocomplete: 'off' });
         this._url = createElement('input', { className: 'speech-dialog__input', type: 'text', placeholder: 'https://host:port/path', spellcheck: false, autocomplete: 'off' });
-        this._key = createElement('input', { className: 'speech-dialog__input', type: 'password', placeholder: 'Optional', autocomplete: 'new-password' });
+        this._key = createElement('input', { className: 'speech-dialog__input', type: 'password', placeholder: t('Optional'), autocomplete: 'new-password' });
         this._error = createElement('p', { className: 'speech-dialog__error', role: 'alert' });
-        this._add = createElement('button', { className: 'speech-button speech-button--primary', type: 'submit', textContent: 'Add' });
-        const cancel = createElement('button', { className: 'speech-button', type: 'button', textContent: 'Cancel' });
+        this._add = createElement('button', { className: 'speech-button speech-button--primary', type: 'submit', textContent: t('Add') });
+        const cancel = createElement('button', { className: 'speech-button', type: 'button', textContent: t('Cancel') });
         this._form = createElement('form', { className: 'speech-dialog__form', noValidate: true },
-            this._title, field('Name', this._name), field('Address', this._url), field('Key', this._key), this._error,
+            this._title, field(t('Name'), this._name), field(t('Address'), this._url), field(t('Key'), this._key), this._error,
             createElement('div', { className: 'speech-dialog__buttons' }, cancel, this._add));
         this._dialog = createElement('dialog', { className: 'speech-dialog' }, this._form);
         document.body.append(this._dialog);
@@ -51,7 +52,7 @@ export class ServerDialog {
         const server = { name: this._name.value.trim(), url: this._url.value.trim(), key: this._key.value };
         const missing = !server.name ? this._name : !server.url ? this._url : null;
         if (missing) {
-            this._error.textContent = missing === this._name ? 'Enter the name of the server.' : 'Enter the address of the server.';
+            this._error.textContent = missing === this._name ? t('Enter the name of the server.') : t('Enter the address of the server.');
             missing.focus();
             return;
         }

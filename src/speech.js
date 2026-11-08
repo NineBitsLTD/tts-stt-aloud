@@ -3,6 +3,7 @@ import { ModelDialog } from './speech/ModelDialog';
 import { PlayerSection } from './speech/PlayerSection';
 import { ServerDialog } from './speech/ServerDialog';
 import { SpeechSection } from './speech/SpeechSection';
+import { t } from './speech/t';
 
 /**
  * The webview of the speech side bar (`SpeechPanel` on the host): the Player, TTS and STT sections. The host
@@ -18,8 +19,8 @@ const sections = {
     tts: new SpeechSection({
         name: 'tts',
         title: 'TTS',
-        hint: 'Text to speech',
-        volume: { label: 'Volume', icon: 'unmute', max: 100, title: 'Volume of the speech, in % of the volume of the computer' },
+        hint: t('Text to speech'),
+        volume: { label: t('Volume'), icon: 'unmute', max: 100, title: t('Volume of the speech, in % of the volume of the computer') },
         host,
         dialog,
         modelDialog,
@@ -27,8 +28,8 @@ const sections = {
     stt: new SpeechSection({
         name: 'stt',
         title: 'STT',
-        hint: 'Speech to text',
-        volume: { label: 'Mic', icon: 'mic', max: 200, title: 'Gain of the microphone, in % (100: as recorded)' },
+        hint: t('Speech to text'),
+        volume: { label: t('Mic'), icon: 'mic', max: 200, title: t('Gain of the microphone, in % (100: as recorded)') },
         host,
         dialog,
         modelDialog,

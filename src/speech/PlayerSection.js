@@ -1,4 +1,5 @@
 import { createElement, createIcon } from './createElement';
+import { t } from './t';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
 /** @typedef {import('../components/TextPlayer').PlayerState & { speech: boolean, microphone: boolean, dictating: boolean }} PlayerSectionState */
@@ -17,25 +18,25 @@ export class PlayerSection {
      */
     constructor(host) {
         this._host = host;
-        this._fileOption = new Option('No text file', 'file');
-        this._source = createElement('select', { className: 'speech-row__select', title: 'What is read aloud' }, this._fileOption, new Option('Clipboard', 'clipboard'));
+        this._fileOption = new Option(t('No text file'), 'file');
+        this._source = createElement('select', { className: 'speech-row__select', title: t('What is read aloud') }, this._fileOption, new Option(t('Clipboard'), 'clipboard'));
         this._source.addEventListener('change', () => this._send('source', this._source.value));
         this._record = this._button('record', 'record');
-        this._play = this._button('play', 'play', 'Read aloud');
+        this._play = this._button('play', 'play', t('Read aloud'));
         this._play.classList.add('speech-button--primary');
-        this._back = this._button('debug-reverse-continue', 'back', 'Previous phrase');
-        this._pause = this._button('debug-pause', 'pause', 'Pause');
-        this._forward = this._button('debug-continue', 'forward', 'Next phrase');
-        this._stop = this._button('debug-stop', 'stop', 'Stop reading');
+        this._back = this._button('debug-reverse-continue', 'back', t('Previous phrase'));
+        this._pause = this._button('debug-pause', 'pause', t('Pause'));
+        this._forward = this._button('debug-continue', 'forward', t('Next phrase'));
+        this._stop = this._button('debug-stop', 'stop', t('Stop reading'));
         this._time = createElement('span', { className: 'speech-player__time' });
         this._phrase = createElement('p', { className: 'speech-player__phrase', hidden: true });
         this._note = createElement('p', { className: 'speech-section__note' });
         this.element = createElement('section', { className: 'speech-section speech-section--player', hidden: true },
             createElement('header', { className: 'speech-section__head' },
-                createElement('h2', { className: 'speech-section__title', textContent: 'Player' }),
-                createElement('span', { className: 'speech-section__hint', textContent: 'Read aloud and dictate' })),
+                createElement('h2', { className: 'speech-section__title', textContent: t('Player') }),
+                createElement('span', { className: 'speech-section__hint', textContent: t('Read aloud and dictate') })),
             createElement('div', { className: 'speech-section__body' },
-                createElement('div', { className: 'speech-row' }, createElement('span', { className: 'speech-row__label' }, createIcon('file-text'), 'Source'), this._source),
+                createElement('div', { className: 'speech-row' }, createElement('span', { className: 'speech-row__label' }, createIcon('file-text'), t('Source')), this._source),
                 createElement('div', { className: 'speech-player__controls' }, this._back, this._play, this._pause, this._forward, this._stop, this._record, this._time),
                 this._phrase,
                 this._note));
@@ -47,7 +48,7 @@ export class PlayerSection {
     setState(state) {
         const { reading, speech, microphone, dictating } = state;
         this.element.hidden = !speech && !microphone;
-        this._fileOption.text = (reading?.kind === 'file' ? reading.name : state.fileLabel) || 'No text file';
+        this._fileOption.text = (reading?.kind === 'file' ? reading.name : state.fileLabel) || t('No text file');
         this._source.value = reading ? reading.kind : state.source;
         this._source.disabled = !!reading;
         this._showRecord(state);
@@ -57,7 +58,7 @@ export class PlayerSection {
         this._back.disabled = !reading?.hasPrevious;
         this._forward.disabled = !reading?.hasNext;
         this._pause.replaceChildren(createIcon(reading?.paused ? 'play' : 'debug-pause'));
-        this._pause.title = reading?.paused ? 'Resume' : 'Pause';
+        this._pause.title = reading?.paused ? t('Resume') : t('Pause');
         this._time.textContent = !speech ? '' : reading ? `${reading.position} / ${reading.duration}` : state.time;
         this._phrase.hidden = reading?.kind !== 'clipboard';
         this._phrase.textContent = reading?.kind === 'clipboard' ? reading.phrase : '';
@@ -72,7 +73,7 @@ export class PlayerSection {
         this._record.disabled = !dictating && source === 'file' && !fileLabel;
         this._record.replaceChildren(createIcon(dictating ? 'stop-circle' : 'record'));
         this._record.classList.toggle('speech-player__record--on', dictating);
-        this._record.title = dictating ? 'Stop dictation' : source === 'clipboard' ? 'Dictate into the clipboard' : 'Dictate at the cursor of the file';
+        this._record.title = dictating ? t('Stop dictation') : source === 'clipboard' ? t('Dictate into the clipboard') : t('Dictate at the cursor of the file');
     }
 
     /**

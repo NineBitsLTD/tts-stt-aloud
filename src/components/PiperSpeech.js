@@ -1,10 +1,13 @@
 import { dirname, join } from 'node:path';
+import * as vscode from 'vscode';
 import { EnglishReading } from '../utils/EnglishReading';
 import { loadRuntime } from '../utils/loadRuntime';
 import { isEnglish, normalizeRussian } from '../utils/normalizeRussian';
 import { speaksLanguage } from '../utils/pickVoice';
 import { WavAudio } from '../utils/WavAudio';
 import { readSherpaMeta } from './PiperModels';
+
+const t = vscode.l10n.t;
 
 /** @typedef {import('./PiperModels').PiperModels} PiperModels */
 /** @typedef {{ name: string, lang: string, score: number, path: string }} PiperVoice a ready model as a voice */
@@ -129,7 +132,7 @@ export class PiperSpeech {
         if (!runtime) throw new Error(this._missing);
         const voices = await this.voices();
         const model = voices.find(item => item.name === voice) ?? voices.find(item => lang && speaksLanguage(item, lang)) ?? voices[0];
-        if (!model) throw new Error('Piper has no voice model ready: add one under Add driver → Piper.');
+        if (!model) throw new Error(t('Piper has no voice model ready: add one under Add driver → Piper.'));
         const espeakVoice = (await readSherpaMeta(model.path))?.voice || model.lang.slice(0, 2).toLowerCase() || 'en-us';
         const phonemes = this._phonemize(runtime.phonemizer, text, espeakVoice);
         const engine = await this._engine(runtime.addon, model.path);
@@ -144,7 +147,7 @@ export class PiperSpeech {
                 generationConfig: { sid: 0, speed: rate, phonemeCodepoints: phonemes },
             });
         } catch (error) {
-            throw new Error(`Piper (sherpa-onnx) could not speak with ${model.name}: ${error?.message || error}`);
+            throw new Error(t('Piper (sherpa-onnx) could not speak with {0}: {1}', model.name, error?.message || error));
         }
         return WavAudio.fromFloat32(audio.samples, audio.sampleRate);
     }
@@ -187,7 +190,7 @@ export class PiperSpeech {
             this._runtime = { addon: loadRuntime(this._extension, 'native/sherpa-onnx.node'), phonemizer: loadRuntime(this._extension, 'piper-phonemize/index.js') };
         } catch (error) {
             this._runtime = null;
-            this._missing = `Piper cannot speak in this build for ${process.platform}-${process.arch}: sherpa-onnx or piper-phonemize is missing (${error?.message || error}).`;
+            this._missing = t('Piper cannot speak in this build for {0}-{1}: sherpa-onnx or piper-phonemize is missing ({2}).', process.platform, process.arch, error?.message || error);
         }
         return this._runtime;
     }

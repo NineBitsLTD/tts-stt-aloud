@@ -551,8 +551,6 @@ body {
 	}
 
 	&__license {
-		white-space: pre;
-
 		&--restricted {
 			color: var(--vscode-editorWarning-foreground, #cca700);
 		}
@@ -566,6 +564,7 @@ body {
 		overflow: hidden;
 		color: var(--vscode-descriptionForeground);
 		font-size: 11px;
+		flex-wrap: wrap;
 		white-space: nowrap;
 
 		.codicon {
@@ -573,7 +572,9 @@ body {
 		}
 
 		&--problem {
+			flex-wrap: nowrap;
 			color: var(--vscode-editorWarning-foreground, #cca700);
+			white-space: normal;
 		}
 	}
 

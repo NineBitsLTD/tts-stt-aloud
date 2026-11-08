@@ -5,6 +5,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import * as vscode from 'vscode';
 
+const t = vscode.l10n.t;
+
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./SpeechSettings').SpeechSection} SpeechSection */
 
@@ -53,7 +55,7 @@ export async function save(source, target, { signal, size, onBytes, transform })
     };
     await mkdir(dirname(target), { recursive: true });
     await pipeline(source, count, createWriteStream(part), { signal });
-    if (size && received !== size) throw new Error(`${basename(target)} came incomplete (${received} of ${size} bytes)`);
+    if (size && received !== size) throw new Error(t('{0} came incomplete ({1} of {2} bytes)', basename(target), received, size));
     if (transform) await transform(part);
     await rename(part, target);
 }
@@ -152,7 +154,7 @@ export class ModelStore {
      * @returns {Promise<string>} the `.onnx` file chosen in the open dialog ('' : none)
      */
     async browse() {
-        const [uri] = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { [this.label]: ['onnx'] }, openLabel: 'Choose' }) ?? [];
+        const [uri] = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { [this.label]: ['onnx'] }, openLabel: t('Choose') }) ?? [];
         return uri?.fsPath ?? '';
     }
 
@@ -162,11 +164,11 @@ export class ModelStore {
      */
     async remove(path) {
         const stored = this.isStored(path);
-        const answer = await vscode.window.showWarningMessage(`Remove the ${this.label} ${this.nameOf(path)}?`, {
+        const answer = await vscode.window.showWarningMessage(t('Remove the {0} {1}?', this.label, this.nameOf(path)), {
             modal: true,
-            detail: stored ? 'Its files in the storage of the extension are deleted.' : 'It leaves the list; its files stay on the disk.',
-        }, 'Remove');
-        if (answer !== 'Remove') return;
+            detail: stored ? t('Its files in the storage of the extension are deleted.') : t('It leaves the list; its files stay on the disk.'),
+        }, t('Remove'));
+        if (answer !== t('Remove')) return;
         await this._settings.removeModel(this.section, this.driver, path);
         if (!stored) return;
         // A model has its own folder (<driver>/<name>/); a Piper voice downloaded before had its files in piper/
@@ -188,8 +190,8 @@ export class ModelStore {
      * @returns {Promise<string>} why a model of this name cannot be installed ('' : it can)
      */
     async refuseName(name) {
-        if (this.pending.has(name)) return `${name} is being installed.`;
-        if (this.paths().some(path => this.nameOf(path) === name) || await exists(join(this.folder, name))) return `There is a model named ${name} in the list or the storage of the extension already.`;
+        if (this.pending.has(name)) return t('{0} is being installed.', name);
+        if (this.paths().some(path => this.nameOf(path) === name) || await exists(join(this.folder, name))) return t('There is a model named {0} in the list or the storage of the extension already.', name);
         return '';
     }
 
@@ -205,12 +207,12 @@ export class ModelStore {
     install(name, action, total, write) {
         this.pending.set(name, { action, done: 0, total });
         this._changed.fire();
-        const title = `${action === 'downloading' ? 'Downloading' : 'Preparing'} the ${this.label} ${name}`;
+        const title = action === 'downloading' ? t('Downloading the {0} {1}', this.label, name) : t('Preparing the {0} {1}', this.label, name);
         vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title, cancellable: true }, (progress, token) => this._write(name, total, write, progress, token))
             .then(async (path) => {
                 if (path) await this._settings.addModel(this.section, this.driver, path);
             }, (error) => {
-                if (error?.name !== 'AbortError') vscode.window.showErrorMessage(`The ${this.label} ${name} could not be ${action === 'downloading' ? 'downloaded' : 'prepared'}: ${error?.message || error}`);
+                if (error?.name !== 'AbortError') vscode.window.showErrorMessage(action === 'downloading' ? t('The {0} {1} could not be downloaded: {2}', this.label, name, error?.message || error) : t('The {0} {1} could not be prepared: {2}', this.label, name, error?.message || error));
             })
             .finally(() => {
                 this.pending.delete(name);
@@ -236,7 +238,7 @@ export class ModelStore {
         let told = 0;
         const onBytes = (count) => {
             done += count;
-            progress.report({ increment: (count / sum) * 100, message: `${Math.round((done / sum) * 100)}% of ${(sum / 2 ** 20).toFixed(0)} MB` });
+            progress.report({ increment: (count / sum) * 100, message: t('{0}% of {1} MB', Math.round((done / sum) * 100), (sum / 2 ** 20).toFixed(0)) });
             if (!pending) return;
             pending.done = done;
             if (Date.now() - told < PROGRESS_INTERVAL) return;

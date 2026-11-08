@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 
+const t = vscode.l10n.t;
+
 /** The section of the settings of VS Code (`ttsSttAloud.tts.*`, `ttsSttAloud.stt.*`). */
 const CONFIG = 'ttsSttAloud';
 /** The driver id of an external server: `external:<name>`. */
@@ -116,7 +118,7 @@ export class SpeechSettings {
     drivers(section) {
         const { drivers, servers } = this.get()[section];
         return [
-            ...PRESET_DRIVERS[section].map(({ id, name }) => ({ id, name, kind: /** @type {const} */ (id === 'system' ? 'system' : 'preset'), enabled: id === 'system' || drivers.includes(id) })),
+            ...PRESET_DRIVERS[section].map(({ id, name }) => ({ id, name: id === 'system' ? t('System') : name, kind: /** @type {const} */ (id === 'system' ? 'system' : 'preset'), enabled: id === 'system' || drivers.includes(id) })),
             ...servers.map(({ name, url }) => ({ id: EXTERNAL + name, name, kind: /** @type {const} */ ('external'), url, enabled: drivers.includes(EXTERNAL + name) })),
         ];
     }
@@ -178,15 +180,15 @@ export class SpeechSettings {
     async addServer(section, { name = '', url = '', key = '' }) {
         const title = String(name).trim();
         const address = String(url).trim();
-        if (!title) return 'Enter the name of the server.';
-        if (this.drivers(section).some(driver => driver.name.toLowerCase() === title.toLowerCase())) return `There is a driver named ${title} already.`;
+        if (!title) return t('Enter the name of the server.');
+        if (this.drivers(section).some(driver => driver.name.toLowerCase() === title.toLowerCase())) return t('There is a driver named {0} already.', title);
         let parsed;
         try {
             parsed = new URL(address);
         } catch {
             parsed = null;
         }
-        if (!parsed || !/^https?:$/.test(parsed.protocol)) return 'Enter the address of the server as http(s)://host[:port][/path].';
+        if (!parsed || !/^https?:$/.test(parsed.protocol)) return t('Enter the address of the server as http(s)://host[:port][/path].');
         const { servers, drivers } = this.get()[section];
         if (String(key).trim()) await this._secrets.store(SpeechSettings._secretKey(section, title), String(key).trim());
         await this._set(`${section}.servers`, [...servers, { name: title, url: address }]);

@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 
+const t = vscode.l10n.t;
+
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
 /** @typedef {import('./SpeechToText').SpeechToText} SpeechToText */
@@ -80,7 +82,7 @@ export class Dictation {
         const toClipboard = !uri && this._player.source === 'clipboard';
         const document = toClipboard ? null : this._player.editorFor(uri)?.document ?? null;
         if (!toClipboard && !document) {
-            vscode.window.showWarningMessage('Open a text file to dictate into it.');
+            vscode.window.showWarningMessage(t('Open a text file to dictate into it.'));
             return;
         }
         const recognition = await this._stt.recognition();
@@ -115,12 +117,12 @@ export class Dictation {
                 const { wav, ended } = await this._stt.listen(LIMITS, this, { keep: true });
                 if (wav) session.queue = session.queue.then(() => this._recognize(session, wav));
                 if (ended === 'interrupted' && this._session === session) {
-                    vscode.window.showInformationMessage('Dictation stopped: a recording was started with the microphone.');
+                    vscode.window.showInformationMessage(t('Dictation stopped: a recording was started with the microphone.'));
                     this.stop();
                 }
             }
         } catch (error) {
-            vscode.window.showErrorMessage(`Dictation failed: ${error?.message || error}`);
+            vscode.window.showErrorMessage(t('Dictation failed: {0}', error?.message || error));
             if (this._session === session) this.stop();
         } finally {
             this._stt.releaseMicrophone(this);
@@ -140,7 +142,7 @@ export class Dictation {
             if (!/[\p{L}\p{N}]/u.test(heard) || /^[[(].*[\])]$/.test(heard)) return;
             await this._write(session, heard);
         } catch (error) {
-            vscode.window.showErrorMessage(`Dictation failed: ${error?.message || error}`);
+            vscode.window.showErrorMessage(t('Dictation failed: {0}', error?.message || error));
             if (this._session === session) this.stop();
         }
     }
@@ -155,14 +157,14 @@ export class Dictation {
             await vscode.env.clipboard.writeText(session.text);
             return;
         }
-        if (session.document.isClosed) throw new Error('The file was closed.');
+        if (session.document.isClosed) throw new Error(t('The file was closed.'));
         const editor = vscode.window.visibleTextEditors.find(item => item.document === session.document)
             ?? await vscode.window.showTextDocument(session.document, { preserveFocus: true, preview: false });
         const { document, selection } = editor;
         const { start } = selection;
         const before = start.character ? document.getText(new vscode.Range(start.translate(0, -1), start)) : '';
         const written = before && !/[\s([{«"'“]/u.test(before) ? ` ${text}` : text;
-        if (!await editor.edit(edit => edit.replace(selection, written))) throw new Error('The file cannot be changed.');
+        if (!await editor.edit(edit => edit.replace(selection, written))) throw new Error(t('The file cannot be changed.'));
         const end = document.positionAt(document.offsetAt(start) + written.length);
         editor.selection = new vscode.Selection(end, end);
     }

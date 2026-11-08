@@ -2,6 +2,7 @@ import { createElement, createIcon } from './createElement';
 import { DriverPicker } from './DriverPicker';
 import { megabytes } from './ModelDialog';
 import { VoicePicker } from './VoicePicker';
+import { fixed, t } from './t';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
@@ -15,28 +16,30 @@ import { VoicePicker } from './VoicePicker';
 /** @typedef {{ heard: boolean, duration: number, ended: string, text: string | null, lang?: string, note?: string }} MicTest the result of the microphone test; text null: not recognized (note: why) */
 
 /** How a recording of the microphone test ended, as the section says it. */
-const ENDINGS = { pause: 'after a pause', limit: 'at its longest', stopped: 'stopped' };
+const ENDINGS = { pause: t('after a pause'), limit: t('at its longest'), stopped: t('stopped') };
 /** What the block of the models of a driver and its dialog say. */
 const MODEL_TEXTS = {
     piper: {
-        title: 'Piper voice models',
-        add: 'Add voice model',
-        dialog: 'Add Piper Voice Model',
-        item: 'voice',
-        empty: 'No voice models yet',
-        problem: 'not prepared for sherpa-onnx',
-        disk: 'A Piper model with its .onnx.json next to it is copied into the storage of the extension and prepared there for sherpa-onnx (the file stays as it is); a model of sherpa-onnx (vits-piper-…, with tokens.txt next to it) is used where it is.',
-        catalog: 'The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded.',
+        title: t('Piper voice models'),
+        add: t('Add voice model'),
+        loading: t('Loading the list of voices…'),
+        noMatch: t('No voice matches'),
+        dialog: t('Add Piper Voice Model'),
+        empty: t('No voice models yet'),
+        problem: t('not prepared for sherpa-onnx'),
+        disk: t('A Piper model with its .onnx.json next to it is copied into the storage of the extension and prepared there for sherpa-onnx (the file stays as it is); a model of sherpa-onnx (vits-piper-…, with tokens.txt next to it) is used where it is.'),
+        catalog: t('The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded.'),
     },
     whisper: {
-        title: 'Whisper models',
-        add: 'Add model',
-        dialog: 'Add Whisper Model',
-        item: 'model',
-        empty: 'No models yet',
-        problem: 'not a Whisper model of sherpa-onnx, or its decoder or tokens are missing',
-        disk: 'Choose the encoder of a Whisper model of sherpa-onnx (<name>-encoder.onnx or <name>-encoder.int8.onnx): its decoder and <name>-tokens.txt must be next to it; it is used where it is.',
-        catalog: 'The Whisper models of sherpa-onnx (int8), downloaded into the storage of the extension. All the models without .en are multilingual — 99 languages, Whisper detects the language —, but distil-large-v3, English only like the .en ones. For Russian take small or a larger one: tiny and base are fast but rough.',
+        title: t('Whisper models'),
+        add: t('Add model'),
+        loading: t('Loading the list of models…'),
+        noMatch: t('No model matches'),
+        dialog: t('Add Whisper Model'),
+        empty: t('No models yet'),
+        problem: t('not a Whisper model of sherpa-onnx, or its decoder or tokens are missing'),
+        disk: t('Choose the encoder of a Whisper model of sherpa-onnx (<name>-encoder.onnx or <name>-encoder.int8.onnx): its decoder and <name>-tokens.txt must be next to it; it is used where it is.'),
+        catalog: t('The Whisper models of sherpa-onnx (int8), downloaded into the storage of the extension. All the models without .en are multilingual — 99 languages, Whisper detects the language —, but distil-large-v3, English only like the .en ones. For Russian take small or a larger one: tiny and base are fast but rough.'),
     },
 };
 /** The languages listed first in the language of recognition. */
@@ -44,11 +47,12 @@ const FIRST_LANGUAGES = ['ru', 'uk', 'en'];
 
 /**
  * @param {string} code
- * @returns {string} the English name of a language ("Russian"; the code when unknown)
+ * @returns {string} the name of a language in the language of VS Code ("Russian"; the code when unknown)
  */
 function languageName(code) {
     try {
-        return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code;
+        const name = new Intl.DisplayNames([document.documentElement.lang || 'en'], { type: 'language' }).of(code) ?? code;
+        return name.charAt(0).toLocaleUpperCase() + name.slice(1);
     } catch {
         return code;
     }
@@ -60,9 +64,9 @@ function languageName(code) {
  * @returns {string} "12.3 of 99.0 MB" (GB from 1 GB on: "0.45 of 1.70 GB"; "12.3 MB" without the total)
  */
 function amountOf(done, total) {
-    const [unit, size, digits] = (total || done) >= 2 ** 30 ? ['GB', 2 ** 30, 2] : ['MB', 2 ** 20, 1];
-    const value = bytes => (bytes / size).toFixed(digits);
-    return total ? `${value(done)} of ${value(total)} ${unit}` : `${value(done)} ${unit}`;
+    const [unit, size, digits] = (total || done) >= 2 ** 30 ? [t('GB'), 2 ** 30, 2] : [t('MB'), 2 ** 20, 1];
+    const value = bytes => fixed(bytes / size, digits);
+    return total ? t('{0} of {1} {2}', value(done), value(total), unit) : `${value(done)} ${unit}`;
 }
 
 /**
@@ -70,7 +74,7 @@ function amountOf(done, total) {
  * @returns {string} seconds with one decimal
  */
 function seconds(ms) {
-    return `${(ms / 1000).toFixed(1)} s`;
+    return t('{0} s', fixed(ms / 1000, 1));
 }
 
 /**
@@ -171,7 +175,7 @@ export class SpeechSection {
         this._voicesOf = '';
         this._testing = false;
 
-        this._switch = createElement('input', { className: 'speech-switch__input', type: 'checkbox', role: 'switch', title: `Turn ${title} on or off` });
+        this._switch = createElement('input', { className: 'speech-switch__input', type: 'checkbox', role: 'switch', title: t('Turn {0} on or off', title) });
         this._switch.addEventListener('change', () => this._update('enabled', this._switch.checked));
         const head = createElement('header', { className: 'speech-section__head' },
             createElement('h2', { className: 'speech-section__title', textContent: title }),
@@ -180,15 +184,15 @@ export class SpeechSection {
 
         this._volume = this._range({ ...volume, min: 0, step: 5, format: value => `${value}%`, key: 'volume' });
         this._meter = new LevelMeter();
-        this._driverSelect = createElement('select', { className: 'speech-row__select', title: `Driver of ${title}` });
+        this._driverSelect = createElement('select', { className: 'speech-row__select', title: t('Driver of {0}', title) });
         this._driverSelect.addEventListener('change', () => this._update('driver', this._driverSelect.value));
         /** @type {DriverPicker | null} the drivers speaking together (TTS) */
-        this._driverPicker = name === 'tts' ? new DriverPicker({ title: 'Drivers of TTS: check several to have their voices together', onChange: ids => this._update('active', ids) }) : null;
+        this._driverPicker = name === 'tts' ? new DriverPicker({ title: t('Drivers of TTS: check several to have their voices together'), onChange: ids => this._update('active', ids) }) : null;
         this._addToggle = createElement('button', { className: 'speech-button speech-section__add', type: 'button', ariaExpanded: 'false' },
-            createIcon('add'), 'Add driver', createIcon('chevron-down'));
+            createIcon('add'), t('Add driver'), createIcon('chevron-down'));
         this._driverList = createElement('div', { className: 'speech-drivers__list' });
-        const external = createElement('button', { className: 'speech-button speech-drivers__external', type: 'button' }, createIcon('globe'), 'Add External');
-        external.addEventListener('click', () => this._dialog.open(`Add External ${title} Server`, server => this._host.request('addServer', { section: this._name, server })));
+        const external = createElement('button', { className: 'speech-button speech-drivers__external', type: 'button' }, createIcon('globe'), t('Add External'));
+        external.addEventListener('click', () => this._dialog.open(t('Add External {0} Server', title), server => this._host.request('addServer', { section: this._name, server })));
         this._driversPanel = createElement('div', { className: 'speech-drivers', hidden: true }, this._driverList, external);
         this._addToggle.addEventListener('click', () => {
             this._driversPanel.hidden = !this._driversPanel.hidden;
@@ -216,7 +220,7 @@ export class SpeechSection {
         this._recognitionRows = [];
         this._uiLanguage = 'en';
         /** What showing a file in the file manager is called on this system ("Reveal in Finder"). */
-        this._revealLabel = 'Open Containing Folder';
+        this._revealLabel = t('Open Containing Folder');
         this._note = createElement('p', { className: 'speech-section__note' });
         this._status = createElement('p', { className: 'speech-section__status', role: 'status' });
 
@@ -224,8 +228,8 @@ export class SpeechSection {
         const rows = [
             this._volume.row,
             ...(tts ? [this._speedRow()] : []),
-            SpeechSection._row(createIcon('pulse'), 'Level', this._meter.element),
-            SpeechSection._row(createIcon('plug'), tts ? 'Drivers' : 'Driver', this._driverPicker?.element ?? this._driverSelect),
+            SpeechSection._row(createIcon('pulse'), t('Level'), this._meter.element),
+            SpeechSection._row(createIcon('plug'), tts ? t('Drivers') : t('Driver'), this._driverPicker?.element ?? this._driverSelect),
             createElement('div', { className: 'speech-section__drivers' }, this._addToggle, this._driversPanel),
             ...(tts ? [] : this._recognitionRowsOf()),
             this._note,
@@ -243,7 +247,7 @@ export class SpeechSection {
      * @param {string} [uiLanguage] the language of VS Code (`en`, `ru`, `zh-cn`)
      * @param {string} [revealLabel] what showing a file in the file manager is called on this system
      */
-    setState(state, drivers, note, models = {}, uiLanguage = 'en', revealLabel = 'Open Containing Folder') {
+    setState(state, drivers, note, models = {}, uiLanguage = 'en', revealLabel = t('Open Containing Folder')) {
         this._state = state;
         this._drivers = drivers;
         this._models = models;
@@ -254,7 +258,7 @@ export class SpeechSection {
         this._volume.set(state.volume);
         this._speed?.set(state.rate);
         const offered = drivers.filter(driver => driver.enabled);
-        this._driverSelect.replaceChildren(...(offered.length ? offered.map(driver => new Option(driver.name, driver.id)) : [new Option('None: check one under Add driver', '')]));
+        this._driverSelect.replaceChildren(...(offered.length ? offered.map(driver => new Option(driver.name, driver.id)) : [new Option(t('None: check one under Add driver'), '')]));
         this._driverSelect.disabled = !offered.length;
         this._driverSelect.value = state.driver;
         this._driverPicker?.set(drivers.filter(driver => driver.enabled), state.active ?? [state.driver]);
@@ -303,18 +307,18 @@ export class SpeechSection {
             const elapsed = performance.now() - since;
             const left = Math.max(0, Math.ceil(((limits?.waitMs ?? 5000) - elapsed) / 1000));
             if (state === 'waiting') {
-                this._progress.textContent = dictation ? 'Dictation: waiting for speech' : test ? `Speak now — waiting for speech ${left} s` : `An extension waits for speech: ${left} s`;
+                this._progress.textContent = dictation ? t('Dictation: waiting for speech') : test ? t('Speak now — waiting for speech {0} s', left) : t('An extension waits for speech: {0} s', left);
             } else if (state === 'recording') {
-                this._progress.textContent = dictation ? `Dictation: recording ${seconds(elapsed)}` : test
-                    ? `Recording ${seconds(elapsed)} — ends after ${seconds(limits?.silenceMs ?? 1000)} of silence, at ${seconds(limits?.maxMs ?? 10000)} at most`
-                    : `An extension records: ${seconds(elapsed)}`;
+                this._progress.textContent = dictation ? t('Dictation: recording {0}', seconds(elapsed)) : test
+                    ? t('Recording {0} — ends after {1} of silence, at {2} at most', seconds(elapsed), seconds(limits?.silenceMs ?? 1000), seconds(limits?.maxMs ?? 10000))
+                    : t('An extension records: {0}', seconds(elapsed));
             }
         };
         if (state === 'waiting' || state === 'recording') {
             show();
             this._progressTimer = setInterval(show, 100);
         } else {
-            this._progress.textContent = state === 'queued' ? 'Waiting for the microphone: another window is using it' : state === 'playing' ? 'Playing the recording' : state === 'recognizing' ? 'Recognizing the speech…' : '';
+            this._progress.textContent = state === 'queued' ? t('Waiting for the microphone: another window is using it') : state === 'playing' ? t('Playing the recording') : state === 'recognizing' ? t('Recognizing the speech…') : '';
         }
         this._progress.classList.toggle('speech-section__progress--live', state !== 'idle');
     }
@@ -350,7 +354,7 @@ export class SpeechSection {
      * @returns {HTMLElement} the speed slider (TTS)
      */
     _speedRow() {
-        this._speed = this._range({ label: 'Speed', icon: 'dashboard', title: 'Speed of the speech', min: 0.5, max: 2, step: 0.05, format: value => `${value.toFixed(2)}×`, key: 'rate' });
+        this._speed = this._range({ label: t('Speed'), icon: 'dashboard', title: t('Speed of the speech'), min: 0.5, max: 2, step: 0.05, format: value => `${fixed(value, 2)}×`, key: 'rate' });
         return this._speed.row;
     }
 
@@ -363,7 +367,7 @@ export class SpeechSection {
             onCheck: (key, checked) => this._host.send('voiceChecked', { key, checked }),
         });
         return [
-            SpeechSection._row(createIcon('record-keys'), 'Voice', this._picker.element),
+            SpeechSection._row(createIcon('record-keys'), t('Voice'), this._picker.element),
             createElement('div', { className: 'speech-section__actions' }, this._testButton),
         ];
     }
@@ -377,7 +381,7 @@ export class SpeechSection {
         this._resultText = createElement('p', { className: 'speech-section__result-text' });
         this._resultMeta = createElement('p', { className: 'speech-section__result-meta' });
         this._result = createElement('div', { className: 'speech-section__result', hidden: true },
-            createElement('span', { className: 'speech-section__result-label', textContent: 'Recognized text' }), this._resultText, this._resultMeta);
+            createElement('span', { className: 'speech-section__result-label', textContent: t('Recognized text') }), this._resultText, this._resultMeta);
         return createElement('div', { className: 'speech-section__microphone' },
             createElement('div', { className: 'speech-section__actions' }, this._testButton), this._progress, this._result);
     }
@@ -386,13 +390,13 @@ export class SpeechSection {
      * @returns {HTMLElement[]} the rows of the model and the language of recognition (STT), shown with Whisper
      */
     _recognitionRowsOf() {
-        this._modelSelect = createElement('select', { className: 'speech-row__select', title: 'The Whisper model that recognizes speech' });
+        this._modelSelect = createElement('select', { className: 'speech-row__select', title: t('The Whisper model that recognizes speech') });
         this._modelSelect.addEventListener('change', () => this._update('model', this._modelSelect.value));
-        this._languageSelect = createElement('select', { className: 'speech-row__select', title: 'The language of the speech recognized' });
+        this._languageSelect = createElement('select', { className: 'speech-row__select', title: t('The language of the speech recognized') });
         this._languageSelect.addEventListener('change', () => this._update('language', this._languageSelect.value));
         this._recognitionRows = [
-            SpeechSection._row(createIcon('file-binary'), 'Model', this._modelSelect),
-            SpeechSection._row(createIcon('globe'), 'Language', this._languageSelect),
+            SpeechSection._row(createIcon('file-binary'), t('Model'), this._modelSelect),
+            SpeechSection._row(createIcon('globe'), t('Language'), this._languageSelect),
         ];
         return this._recognitionRows;
     }
@@ -406,16 +410,16 @@ export class SpeechSection {
         const ready = (this._models.whisper?.models ?? []).filter(model => model.exists && model.ready);
         const chosen = ready.find(model => model.path === this._state.model) ?? ready[0];
         this._modelSelect.replaceChildren(...(ready.length
-            ? ready.map(model => new Option(model.lang === 'en' ? `${model.name} (English only)` : model.name, model.path))
-            : [new Option('No model ready', '')]));
+            ? ready.map(model => new Option(model.lang === 'en' ? t('{0} (English only)', model.name) : model.name, model.path))
+            : [new Option(t('No model ready'), '')]));
         this._modelSelect.value = chosen?.path ?? '';
         this._modelSelect.disabled = !ready.length;
         const languages = chosen?.languages ?? [];
         const order = code => (FIRST_LANGUAGES.includes(code) ? FIRST_LANGUAGES.indexOf(code) : FIRST_LANGUAGES.length);
         const sorted = [...languages].sort((a, b) => order(a) - order(b) || languageName(a).localeCompare(languageName(b)));
-        const options = chosen && !chosen.multilingual ? [new Option('English (the model knows English only)', '')] : [
-            new Option('Auto: Whisper detects the language', ''),
-            new Option(`As VS Code: ${languageName(this._uiLanguage)}`, 'ui'),
+        const options = chosen && !chosen.multilingual ? [new Option(t('English (the model knows English only)'), '')] : [
+            new Option(t('Auto: Whisper detects the language'), ''),
+            new Option(t('As VS Code: {0}', languageName(this._uiLanguage)), 'ui'),
             ...sorted.map(code => new Option(languageName(code), code)),
         ];
         this._languageSelect.replaceChildren(...options);
@@ -431,13 +435,13 @@ export class SpeechSection {
         this._result.hidden = !result?.heard;
         if (!result) return;
         if (!result.heard) {
-            this._progress.textContent = result.ended === 'no-speech' ? 'No speech was heard: speak right after pressing Test.' : 'The test was stopped.';
+            this._progress.textContent = result.ended === 'no-speech' ? t('No speech was heard: speak right after pressing Test.') : t('The test was stopped.');
             return;
         }
-        this._resultText.textContent = result.text || (result.text === '' ? 'Nothing was recognized.' : `Not recognized: ${result.note || 'no recognizer'}`);
+        this._resultText.textContent = result.text || (result.text === '' ? t('Nothing was recognized.') : t('Not recognized: {0}', result.note || t('no recognizer')));
         this._resultText.classList.toggle('speech-section__result-text--none', !result.text);
         const language = result.text && result.lang ? `, ${languageName(result.lang)}` : '';
-        this._resultMeta.textContent = `Recorded ${result.duration.toFixed(1)} s, ended ${ENDINGS[result.ended] ?? result.ended}${language}`;
+        this._resultMeta.textContent = t('Recorded {0} s, ended {1}{2}', fixed(result.duration, 1), ENDINGS[result.ended] ?? result.ended, language);
     }
 
     /** The drivers that can be offered (TTS: besides System): check boxes; the external servers with × to remove them. */
@@ -448,11 +452,11 @@ export class SpeechSection {
             const box = createElement('input', { type: 'checkbox', checked: driver.enabled });
             box.addEventListener('change', () => this._host.send('driverEnabled', { section: this._name, id: driver.id, enabled: box.checked }));
             const item = createElement('div', { className: `speech-drivers__item speech-drivers__item--${driver.kind}` },
-                createElement('label', { className: 'speech-drivers__label', title: driver.url ?? `Offer ${driver.name} as a driver` }, box,
+                createElement('label', { className: 'speech-drivers__label', title: driver.url ?? t('Offer {0} as a driver', driver.name) }, box,
                     createElement('span', { className: 'speech-drivers__name', textContent: driver.name }),
                     ...(driver.url ? [createElement('span', { className: 'speech-drivers__url', textContent: driver.url })] : [])));
             if (driver.kind === 'external') {
-                const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${driver.name}` }, createIcon('close'));
+                const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: t('Remove {0}', driver.name) }, createIcon('close'));
                 remove.addEventListener('click', () => this._host.send('removeServer', { section: this._name, id: driver.id }));
                 item.append(remove);
             }
@@ -469,8 +473,8 @@ export class SpeechSection {
     _modelsBlock(driver, { models, pending: installing }) {
         const texts = MODEL_TEXTS[driver.id] ?? MODEL_TEXTS.whisper;
         const items = models.map((model) => {
-            const problem = !model.exists ? 'the file is missing' : !model.ready ? texts.problem : '';
-            const meta = [model.lang, model.downloaded ? megabytes(model.size) : 'from the disk'].filter(Boolean).join(' · ');
+            const problem = !model.exists ? t('the file is missing') : !model.ready ? texts.problem : '';
+            const meta = [model.lang === 'multilingual' ? t('multilingual') : model.lang, model.downloaded ? megabytes(model.size) : t('from the disk')].filter(Boolean).join(' · ');
             return createElement('li', { className: `speech-models__item${model.exists ? '' : ' speech-models__item--missing'}`, title: model.path },
                 createElement('span', { className: 'speech-models__name', textContent: model.name }),
                 createElement('span', { className: `speech-models__meta${problem ? ' speech-models__meta--problem' : ''}` },
@@ -490,7 +494,7 @@ export class SpeechSection {
             catalog: () => this._host.request('modelCatalog', { driver: driver.id }),
             license: key => this._host.request('modelLicense', { driver: driver.id, key }),
             add: choice => this._host.request('addModel', { driver: driver.id, ...choice }),
-        }, { disk: texts.disk, catalog: texts.catalog, item: texts.item }));
+        }, { disk: texts.disk, catalog: texts.catalog, loading: texts.loading, noMatch: texts.noMatch }));
         return createElement('div', { className: 'speech-models' },
             createElement('span', { className: 'speech-models__title', textContent: texts.title }),
             createElement('ul', { className: 'speech-models__list' }, ...items, ...pending,
@@ -507,8 +511,8 @@ export class SpeechSection {
         const restricted = ['noncommercial', 'copyleft', 'custom', 'unknown'].includes(license.kind);
         return [createElement('span', {
             className: `speech-models__license${restricted ? ' speech-models__license--restricted' : ''}`,
-            textContent: ` · ${license.label}`,
-            title: [license.text || 'The license of its dataset is not stated', license.url].filter(Boolean).join(' '),
+            textContent: `· ${t(license.label)}`,
+            title: [license.text || t('The license of its dataset is not stated'), license.url].filter(Boolean).join(' '),
         })];
     }
 
@@ -519,7 +523,7 @@ export class SpeechSection {
      *   file manager (while its file is there) and × to remove it
      */
     _modelActions(driver, model) {
-        const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${model.name}` }, createIcon('close'));
+        const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: t('Remove {0}', model.name) }, createIcon('close'));
         remove.addEventListener('click', () => this._host.send('removeModel', { driver: driver.id, path: model.path }));
         if (!model.exists) return createElement('span', { className: 'speech-models__actions' }, remove);
         const reveal = createElement('button', { className: 'speech-models__reveal', type: 'button', title: `${this._revealLabel}: ${model.path}` }, createIcon('folder-opened'));
@@ -544,7 +548,8 @@ export class SpeechSection {
      */
     static _showProgress(meta, { action, done, total }) {
         meta.replaceChildren(createIcon('loading codicon-modifier-spin'), amountOf(done, total));
-        meta.title = `${action === 'preparing' ? 'Preparing' : 'Downloading'}${total ? ` ${Math.floor((done / total) * 100)}%` : ''}; the notification can cancel it`;
+        const percent = total ? Math.floor((done / total) * 100) : '?';
+        meta.title = action === 'preparing' ? t('Preparing {0}%; the notification can cancel it', percent) : t('Downloading {0}%; the notification can cancel it', percent);
     }
 
     /** The voices of the active drivers, checked as in the settings (TTS). */
@@ -583,11 +588,11 @@ export class SpeechSection {
 
     _syncTest() {
         const voice = this._picker?.selected ?? '';
-        const idle = this._picker ? 'Test voice' : 'Test microphone';
-        this._testButton.replaceChildren(createIcon(this._testing ? 'debug-stop' : this._picker ? 'play' : 'record'), this._testing ? 'Stop' : idle);
-        this._testButton.title = this._testing ? 'Stop the test'
-            : this._picker ? `Speak a phrase with ${voice || 'the voice chosen'}`
-                : 'Record speech (it waits 5 s for it, records up to 10 s, until 1 s of silence) and play it back';
+        const idle = this._picker ? t('Test voice') : t('Test microphone');
+        this._testButton.replaceChildren(createIcon(this._testing ? 'debug-stop' : this._picker ? 'play' : 'record'), this._testing ? t('Stop') : idle);
+        this._testButton.title = this._testing ? t('Stop the test')
+            : this._picker ? t('Speak a phrase with {0}', voice || t('the voice chosen'))
+                : t('Record speech (it waits 5 s for it, records up to 10 s, until 1 s of silence) and play it back');
         this._testButton.disabled = !this._testing && !!this._picker && (!this._state?.enabled || !voice);
     }
 

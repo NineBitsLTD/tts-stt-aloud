@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { formatJson, minifyJson, stripJsonc } from '../utils/formatJson';
 
+const t = vscode.l10n.t;
+
 /** The message of a save the user cancelled. */
-const SAVE_CANCELLED = 'Saving was cancelled';
+const SAVE_CANCELLED = t('Saving was cancelled');
 
 /**
  * @param {vscode.Uri} uri
@@ -67,12 +69,12 @@ export class JsonFormattedView {
     async open(uri) {
         const target = this._realTarget(uri);
         if (!target || !isJsonFile(target)) {
-            vscode.window.showWarningMessage('Select a .json or .jsonc file to open it formatted.');
+            vscode.window.showWarningMessage(t('Select a .json or .jsonc file to open it formatted.'));
             return;
         }
         const raw = vscode.workspace.textDocuments.find(document => document.uri.toString() === target.toString());
         if (raw?.isDirty) {
-            vscode.window.showWarningMessage('Save or revert the changes of the raw text first: the formatted view shows the file.');
+            vscode.window.showWarningMessage(t('Save or revert the changes of the raw text first: the formatted view shows the file.'));
             return;
         }
         await this._switchTo(target, async (viewColumn, preview) => {
@@ -90,7 +92,7 @@ export class JsonFormattedView {
         if (!target) return;
         const view = vscode.workspace.textDocuments.find(document => document.uri.toString() === JsonFormattedView.toViewUri(target).toString());
         if (view?.isDirty) {
-            vscode.window.showWarningMessage('Save or revert the changes of the formatted view first.');
+            vscode.window.showWarningMessage(t('Save or revert the changes of the formatted view first.'));
             return;
         }
         await this._switchTo(target, async (viewColumn, preview) => {
@@ -183,14 +185,14 @@ export class JsonFormattedView {
         try {
             JSON.parse(text);
         } catch (error) {
-            throw vscode.FileSystemError.Unavailable(`The text is not valid JSON (${error?.message || error}): fix it, or save it as it is from the raw text`);
+            throw vscode.FileSystemError.Unavailable(t('The text is not valid JSON ({0}): fix it, or save it as it is from the raw text', error?.message || error));
         }
         const name = real.path.split('/').pop();
         if (!this._confirmed.has(real.toString())) {
-            const save = 'Save Compact';
+            const save = t('Save Compact');
             const answer = await vscode.window.showWarningMessage(
-                `Saving the formatted view writes ${name} compact`,
-                { modal: true, detail: 'Line breaks and indentation are removed from the file (the values do not change), and so are the comments and trailing commas of JSONC the formatted view leaves out; the formatted view shows it formatted again. Save from the raw text to keep the file as it is written. Asked once per file in this session.' },
+                t('Saving the formatted view writes {0} compact', name),
+                { modal: true, detail: t('Line breaks and indentation are removed from the file (the values do not change), and so are the comments and trailing commas of JSONC the formatted view leaves out; the formatted view shows it formatted again. Save from the raw text to keep the file as it is written. Asked once per file in this session.') },
                 save,
             );
             if (answer !== save) throw vscode.FileSystemError.Unavailable(SAVE_CANCELLED);
