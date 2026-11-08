@@ -1,4 +1,5 @@
-import { clock, estimateReading, guessLanguage, phrasesOf } from '../utils/phrasesOf';
+import { guessLanguage } from '../utils/guessLanguage';
+import { clock, estimateReading, phrasesOf } from '../utils/phrasesOf';
 import { pickVoice, speaksLanguage } from '../utils/pickVoice';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
@@ -230,7 +231,7 @@ export class ReadAloud {
     }
 
     /**
-     * @returns {string} the language tag the text is read in: the translation, else Cyrillic or Latin letters
+     * @returns {string} the language tag the text is read in: the translation, else by its letters
      */
     _textLang() {
         return this._lang || guessLanguage(this._root.textContent);
@@ -250,7 +251,7 @@ export class ReadAloud {
      * @returns {PhraseOptions} how it is read: Auto, the voice of its language
      */
     _phraseOptions(text) {
-        const lang = this._lang || guessLanguage(text);
+        const lang = this._lang || guessLanguage(text, this._textLang());
         return { voice: this._settings.voice || this._voiceFor(lang), rate: this._settings.rate, lang, volume: this._settings.volume };
     }
 

@@ -1,4 +1,4 @@
-import { guessLanguage } from '../utils/phrasesOf';
+import { guessLanguage } from '../utils/guessLanguage';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
 

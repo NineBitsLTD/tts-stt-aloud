@@ -314,7 +314,7 @@ export class SpeechSection {
             show();
             this._progressTimer = setInterval(show, 100);
         } else {
-            this._progress.textContent = state === 'playing' ? 'Playing the recording' : state === 'recognizing' ? 'Recognizing the speech…' : '';
+            this._progress.textContent = state === 'queued' ? 'Waiting for the microphone: another window is using it' : state === 'playing' ? 'Playing the recording' : state === 'recognizing' ? 'Recognizing the speech…' : '';
         }
         this._progress.classList.toggle('speech-section__progress--live', state !== 'idle');
     }

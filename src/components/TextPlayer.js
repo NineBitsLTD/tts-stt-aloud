@@ -1,7 +1,8 @@
 import { posix } from 'node:path';
 import * as vscode from 'vscode';
-import { hasLocale, localeText } from '../utils/localeText';
-import { clock, estimateReading, guessLanguage } from '../utils/phrasesOf';
+import { guessLanguage } from '../utils/guessLanguage';
+import { localeText, spokenLocale } from '../utils/localeText';
+import { clock, estimateReading } from '../utils/phrasesOf';
 import { formatOfLanguage, guessMarkup, readablePhrases } from '../utils/readablePhrases';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
@@ -18,12 +19,14 @@ import { formatOfLanguage, guessMarkup, readablePhrases } from '../utils/readabl
  * @property {number} index the phrase being read
  * @property {boolean} paused
  * @property {number} since when the phrase began
+ * @property {string} language of the whole text: a phrase with little to tell by is in it
  * @typedef {object} PlayerState what the Player section shows
  * @property {'file' | 'clipboard'} source
  * @property {string} fileLabel the text file, with "(selection)" ('' : none)
  * @property {boolean} canPlay
  * @property {string} time about how long the source takes ('' : nothing to read)
- * @property {string} note why it cannot be read
+ * @property {string} note why it cannot be read, or that it waits for another window
+ * @property {boolean} waiting the reading waits for the speech of another window
  * @property {null | { kind: string, name: string, paused: boolean, hasPrevious: boolean, hasNext: boolean, phrase: string, position: string, duration: string }} reading
  */
 
@@ -39,8 +42,8 @@ const CLIPBOARD_INTERVAL = 2000;
  * phrase — Markdown and HTML as plain text (`readablePhrases`) —, announcing first what it reads;
  * the phrase read is highlighted in its editor and scrolled to; pause / resume, a phrase back or on,
  * stop. The buttons are those of the editor title (`when`: the context keys `ttsSttMdAloud.player*`)
- * and of the Player section of the side bar (`state`, `onDidChange`); the time is in the status bar and
- * in that section. It speaks through `TextToSpeech`, so another speech beginning ends it.
+ * and of the Player section of the side bar (`state`, `onDidChange`), which also shows the time. It
+ * speaks through `TextToSpeech`, so another speech beginning ends it.
  */
 export class TextPlayer {
 
@@ -66,6 +69,8 @@ export class TextPlayer {
         /** @type {{ text: string, target: PlayerTarget | null } | null} */
         this._clipboardRead = null;
         this._panelVisible = false;
+        /** The speech waits for another window to finish. */
+        this._waiting = false;
         this._run = 0;
         this._refreshRun = 0;
         this._refreshTimer = undefined;
@@ -87,9 +92,6 @@ export class TextPlayer {
             overviewRulerLane: vscode.OverviewRulerLane.Center,
             borderRadius: '2px',
         });
-        this._status = vscode.window.createStatusBarItem('tts-stt-md-aloud.player', vscode.StatusBarAlignment.Right, 100);
-        this._status.name = 'Read Aloud';
-        this._status.command = 'tts-stt-md-aloud.playerToggle';
     }
 
     /**
@@ -106,7 +108,6 @@ export class TextPlayer {
             command('playerBack', () => this.back()),
             command('playerForward', () => this.forward()),
             command('playerStop', () => this.stop()),
-            command('playerToggle', () => (this._reading ? this.togglePause() : this.playFile())),
             vscode.window.onDidChangeActiveTextEditor((editor) => {
                 this._rememberEditor(editor);
                 this._schedule();
@@ -118,6 +119,10 @@ export class TextPlayer {
                 if (this._reading?.target.document === document) this.stop();
             }),
             this._settings.onDidChange(() => this._onSettings()),
+            this._tts.onWaiting((waiting) => {
+                this._waiting = waiting;
+                this._publish();
+            }),
             new vscode.Disposable(() => this.dispose()),
         );
     }
@@ -127,7 +132,6 @@ export class TextPlayer {
         clearTimeout(this._refreshTimer);
         clearInterval(this._clipboardTimer);
         this._decoration.dispose();
-        this._status.dispose();
         this._changed.dispose();
         this._willPlay.dispose();
     }
@@ -228,7 +232,8 @@ export class TextPlayer {
             fileLabel: this._file ? TextPlayer._label(this._file) : '',
             canPlay: readable && this._settings.get().tts.enabled,
             time: readable ? `~${clock(this._totalOf(target.phrases))}` : '',
-            note: this._note(target, readable),
+            note: this._waiting && reading ? 'Waiting for the speech in another window…' : this._note(target, readable),
+            waiting: this._waiting && !!reading,
             reading: reading && {
                 kind: reading.target.kind,
                 name: TextPlayer._label(reading.target),
@@ -250,7 +255,7 @@ export class TextPlayer {
         this._willPlay.fire();
         this._clearHighlight();
         const copy = { ...target, phrases: target.phrases.map(phrase => ({ ...phrase })) };
-        this._reading = { target: copy, index: 0, paused: false, since: Date.now(), ...TextPlayer._timing(copy.phrases, this._settings.get().tts.rate) };
+        this._reading = { target: copy, index: 0, paused: false, since: Date.now(), language: TextPlayer._textLanguage(copy.phrases.slice(1)), ...TextPlayer._timing(copy.phrases, this._settings.get().tts.rate) };
         clearInterval(this._tick);
         this._tick = setInterval(() => {
             if (this._reading && !this._reading.paused) this._publish();
@@ -267,6 +272,9 @@ export class TextPlayer {
         if (!reading) return;
         const run = ++this._run;
         const { phrases } = reading.target;
+        // What is said on going on after another window interrupted it: in the language of the announcement
+        const resume = { resumeText: localeText(phrases[0].lang, `player.resume.${reading.target.kind}`), resumeLang: phrases[0].lang };
+        const optionsOf = phrase => ({ ...TextPlayer._options(phrase, reading.language), ...resume });
         reading.paused = false;
         for (let index = from; index < phrases.length; index++) {
             reading.index = index;
@@ -276,7 +284,7 @@ export class TextPlayer {
             const next = phrases[index + 1];
             let finished = false;
             try {
-                finished = await this._tts.speak(phrases[index].text, { ...TextPlayer._options(phrases[index]), next: next ? { text: next.text, ...TextPlayer._options(next) } : undefined }, this);
+                finished = await this._tts.speak(phrases[index].text, { ...optionsOf(phrases[index]), next: next ? { text: next.text, ...optionsOf(next) } : undefined }, this);
             } catch (error) {
                 if (run === this._run) vscode.window.showErrorMessage(`Reading aloud failed: ${error?.message || error}`);
             }
@@ -328,10 +336,19 @@ export class TextPlayer {
 
     /**
      * @param {PlayerPhrase} phrase
+     * @param {string} language of the whole text
      * @returns {{ lang: string }} Auto: each phrase in the voice of its own language
      */
-    static _options(phrase) {
-        return { lang: phrase.lang ?? guessLanguage(phrase.text) };
+    static _options(phrase, language) {
+        return { lang: phrase.lang ?? guessLanguage(phrase.text, language) };
+    }
+
+    /**
+     * @param {PlayerPhrase[]} phrases of the text
+     * @returns {string} its language ('' : it has no letters)
+     */
+    static _textLanguage(phrases) {
+        return guessLanguage(phrases.slice(0, LANGUAGE_SAMPLE).map(phrase => phrase.text).join(' '), '');
     }
 
     /**
@@ -388,15 +405,11 @@ export class TextPlayer {
 
     /**
      * @param {PlayerPhrase[]} phrases of the text
-     * @returns {string} the language of the announcement: that of the text, else — the extension does
-     *   not have it, the text has no letters it tells — that of VS Code, else English
+     * @returns {string} the language of the announcement: that of the text, else — the extension has no
+     *   translations for it, the text has no letters — that of VS Code, else English
      */
     static _announcementLanguage(phrases) {
-        const sample = phrases.slice(0, LANGUAGE_SAMPLE).map(phrase => phrase.text).join(' ');
-        const spoken = /[а-яёіїєґa-z]/i.test(sample) ? guessLanguage(sample) : '';
-        if (hasLocale(spoken)) return spoken;
-        const shown = vscode.env.language.split('-')[0].toLowerCase();
-        return hasLocale(shown) ? shown : 'en';
+        return spokenLocale(TextPlayer._textLanguage(phrases), vscode.env.language);
     }
 
     /**
@@ -501,14 +514,13 @@ export class TextPlayer {
         for (const editor of this._readingEditors()) editor.setDecorations(this._decoration, []);
     }
 
-    /** The context keys of the buttons, the status bar and the side bar follow. */
+    /** The context keys of the buttons and the side bar follow. */
     _publish() {
         const reading = this._reading;
         this._setContext('ttsSttMdAloud.playerActive', !!reading);
         this._setContext('ttsSttMdAloud.playerPaused', !!reading?.paused);
         this._setContext('ttsSttMdAloud.playerHasPrevious', this._hasPrevious());
         this._setContext('ttsSttMdAloud.playerHasNext', this._hasNext());
-        this._showStatus();
         this._changed.fire();
     }
 
@@ -520,26 +532,5 @@ export class TextPlayer {
         if (this._contexts[key] === value) return;
         this._contexts[key] = value;
         vscode.commands.executeCommand('setContext', key, value);
-    }
-
-    /** The status bar: the time of the text of the active editor, of the reading while it goes on. */
-    _showStatus() {
-        const reading = this._reading;
-        if (reading) {
-            const count = reading.target.phrases.length - 1;
-            this._status.text = `$(${reading.paused ? 'play' : 'debug-pause'}) ${clock(this._position())} / ~${clock(reading.total)}`;
-            this._status.tooltip = `${TextPlayer._label(reading.target)}: phrase ${Math.max(reading.index, 1)} of ${count}. Click to ${reading.paused ? 'resume' : 'pause'}.`;
-            this._status.show();
-            return;
-        }
-        const file = this._file;
-        if (!file || file.phrases.length < 2 || !this._settings.get().tts.enabled) {
-            this._status.hide();
-            return;
-        }
-        const time = clock(this._totalOf(file.phrases));
-        this._status.text = `$(unmute) ~${time}`;
-        this._status.tooltip = `Read aloud ${file.selected ? 'the selection of ' : ''}${file.name} (about ${time})`;
-        this._status.show();
     }
 }

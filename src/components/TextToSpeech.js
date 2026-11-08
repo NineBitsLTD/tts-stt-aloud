@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
+import { estimateReading } from '../utils/phrasesOf';
 import { pickVoice } from '../utils/pickVoice';
+import { WavAudio } from '../utils/WavAudio';
 import { AudioPlayer, LEVEL_INTERVAL } from './AudioPlayer';
+import { DeviceLock, priorityOf } from './DeviceLock';
 import { SystemSpeech } from './SystemSpeech';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
@@ -17,7 +20,14 @@ import { SystemSpeech } from './SystemSpeech';
  * @property {boolean} checked picked by Auto first, offered to other extensions
  */
 /** @typedef {{ id: string, name: string, available: boolean, message: string }} DriverStatus available: it can speak (message: why not) */
-/** @typedef {{ voice?: string, lang?: string, rate?: number }} SpeakOptions voice: '' or none picks the best (checked) voice of lang; rate: the speed of the settings when not given */
+/**
+ * @typedef {{ voice?: string, lang?: string, rate?: number, priority?: number, resumeText?: string, resumeLang?: string }} SpeakOptions
+ *   voice: '' or none picks the best (checked) voice of lang; rate: the speed of the settings when not given; priority: 0–2 among
+ *   the windows of VS Code (`DeviceLock`); resumeText: said first when the phrase is said again after another window interrupted it,
+ *   in resumeLang (else lang)
+ */
+
+/** @typedef {{ wav?: Buffer, text: string, phrase: { voice?: string, rate: number, lang?: string }, volume: number }} PlayedSound wav: none when the system speaks the text itself */
 
 /** Phrases to try a voice with, by language, when the system gives none. */
 const SAMPLES = {
@@ -35,7 +45,9 @@ const SAMPLES = {
  * the system (`SystemSpeech`) and of Piper (`PiperSpeech`, sherpa-onnx) are rendered to audio and
  * played by `AudioPlayer` — the volume is a share of the computer's, the levels go to `onLevels` —;
  * the phrase to come is rendered while one is spoken. One speech at a time: a new one ends the one
- * being spoken, whoever asked for it.
+ * being spoken, whoever asked for it. Among the windows of VS Code the speaker is shared through
+ * `DeviceLock`: a speech waits for its turn (`onWaiting`); one of a higher priority pauses the speech
+ * being played, which says its phrase again when the speaker is free, after its `resumeText`.
  */
 export class TextToSpeech {
 
@@ -52,6 +64,13 @@ export class TextToSpeech {
         this._levels = new vscode.EventEmitter();
         /** The levels of the sound as it starts playing (empty: silence). */
         this.onLevels = this._levels.event;
+        /** @type {vscode.EventEmitter<boolean>} */
+        this._waiting = new vscode.EventEmitter();
+        /** The speech waits for another window to finish, or no longer. */
+        this.onWaiting = this._waiting.event;
+        this._speaker = new DeviceLock('speaker');
+        /** @type {AbortController | null} ends the waiting for the speaker */
+        this._waitingFor = null;
         this._run = 0;
         /** @type {unknown} who asked for the speech being spoken */
         this._owner = null;
@@ -77,6 +96,7 @@ export class TextToSpeech {
     dispose() {
         this.stop();
         this._levels.dispose();
+        this._waiting.dispose();
     }
 
     /**
@@ -120,8 +140,8 @@ export class TextToSpeech {
      * @param {unknown} [owner] who asks: `stop(owner)` ends only its own speech
      * @returns {Promise<boolean>} true when spoken to the end, false when stopped (or the speech is off)
      */
-    async speak(text, { next, ...options } = {}, owner = null) {
-        this.stop();
+    async speak(text, { next, priority, resumeText, resumeLang, ...options } = {}, owner = null) {
+        this._halt();
         const run = this._run;
         this._owner = owner;
         const settings = this._settings.get().tts;
@@ -132,27 +152,104 @@ export class TextToSpeech {
         if (run !== this._run) return false;
         const volume = settings.volume / 100;
         const system = driver === 'system';
-        if (system && !this._system.canRender) {
-            await this._system.speak(text, { ...phrase, volume });
-            return run === this._run;
+        // The sound is made while the speaker is being marked as this window's
+        const rendering = system && !this._system.canRender ? Promise.resolve({}) : this._render(driver, text, phrase).then(wav => ({ wav }), error => ({ error }));
+        const level = priorityOf(owner, priority);
+        const turn = await this._waitTurn(level, rendering);
+        if (run !== this._run || !turn) return false;
+        const { wav, error } = await rendering;
+        if (error && !system) {
+            this._speaker.release();
+            throw error;
         }
-        let wav;
-        try {
-            wav = await this._render(driver, text, phrase);
-        } catch (error) {
-            if (!system) throw error;
-            // The system cannot write this voice to a file: it speaks it itself
-            if (run !== this._run) return false;
-            await this._system.speak(text, { ...phrase, volume });
-            return run === this._run;
-        }
-        if (next?.text?.trim()) {
+        const going = !!next?.text?.trim();
+        if (wav && going) {
             const coming = await this._resolve(next, status);
             this._renderAhead(coming.driver, next.text, coming.phrase);
+            if (run !== this._run) return false;
         }
-        if (run !== this._run) return false;
-        const played = await this._player.play(wav, { volume, onLevels: (levels, interval) => this._levels.fire({ levels, interval }) });
-        return played && run === this._run;
+        const spoken = await this._playInTurn({ wav, text, phrase, volume }, level, run, { text: resumeText, lang: resumeLang });
+        if (run === this._run) this._speaker.finishPlaying(going && spoken);
+        return spoken && run === this._run;
+    }
+
+    /**
+     * @param {number} level the priority of the speech
+     * @param {Promise<unknown>} ready the sound being made
+     * @returns {Promise<boolean>} whether the speaker is this window's (false: the speech was ended)
+     */
+    async _waitTurn(level, ready) {
+        const abort = new AbortController();
+        this._waitingFor = abort;
+        const turn = await this._speaker.hold(level, ready, { signal: abort.signal, onWait: waiting => this._waiting.fire(waiting) });
+        if (this._waitingFor === abort) this._waitingFor = null;
+        return turn;
+    }
+
+    /**
+     * Plays a phrase; when another window takes the speaker over it pauses, and when its turn comes
+     * says what it was given to say on going on, then the phrase again.
+     * @param {PlayedSound} sound
+     * @param {number} level the priority of the speech
+     * @param {number} run of this speech
+     * @param {{ text?: string, lang?: string }} resume
+     * @returns {Promise<boolean>} true when spoken to the end
+     */
+    async _playInTurn(sound, level, run, resume) {
+        let interrupted = false;
+        while (run === this._run) {
+            const notice = interrupted ? await this._resumeSound(resume, sound) : null;
+            if (run !== this._run) return false;
+            const said = notice ? await this._playWatched(notice) : null;
+            if (run !== this._run) return false;
+            const result = said?.overtaken ? said : await this._playWatched(sound);
+            if (!result.overtaken) return result.spoken;
+            if (run !== this._run) return false;
+            interrupted = true;
+            // Says that the sound has stopped: the window that took the speaker over is waiting for that
+            await this._speaker.finishPlaying(true);
+            if (!await this._waitTurn(level, Promise.resolve())) return false;
+        }
+        return false;
+    }
+
+    /**
+     * Plays a sound while watching the speaker: another window taking it over stops the sound. Without a
+     * sound file (or when the system cannot write this voice to one) the system speaks the text itself.
+     * @param {PlayedSound} sound
+     * @returns {Promise<{ spoken: boolean, overtaken: boolean }>}
+     */
+    async _playWatched({ wav, text, phrase, volume }) {
+        await this._speaker.startPlaying(wav ? (WavAudio.parse(wav)?.duration ?? 60) * 1000 : estimateReading(text, phrase.rate) * 2);
+        let overtaken = false;
+        const watching = this._speaker.watch(() => {
+            overtaken = true;
+            this._player.stop();
+            this._system.stop();
+            this._levels.fire({ levels: [], interval: LEVEL_INTERVAL });
+        });
+        try {
+            const spoken = wav ? await this._player.play(wav, { volume, onLevels: (levels, interval) => this._levels.fire({ levels, interval }) }) : (await this._system.speak(text, { ...phrase, volume }), true);
+            return { spoken, overtaken };
+        } finally {
+            watching.stop();
+        }
+    }
+
+    /**
+     * @param {{ text?: string, lang?: string }} resume
+     * @param {PlayedSound} sound the phrase it comes before
+     * @returns {Promise<PlayedSound | null>} what to say on going on (null: nothing, or it cannot be said)
+     */
+    async _resumeSound({ text, lang }, { phrase: { rate, lang: phraseLang }, volume }) {
+        if (!text?.trim()) return null;
+        try {
+            const { driver, phrase } = await this._resolve({ lang: lang ?? phraseLang, rate }, await this.status());
+            if (driver === 'system' && !this._system.canRender) return { text, phrase, volume };
+            return { wav: await this._render(driver, text, phrase), text, phrase, volume };
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -173,8 +270,16 @@ export class TextToSpeech {
      */
     stop(owner = undefined) {
         if (owner !== undefined && owner !== this._owner) return;
+        this._halt();
+        this._speaker.release();
+    }
+
+    /** Ends the speech being spoken (or waiting for its turn); the next phrase may keep the speaker. */
+    _halt() {
         this._run++;
         this._owner = null;
+        this._waitingFor?.abort();
+        this._waitingFor = null;
         this._player.stop();
         this._system.stop();
         this._levels.fire({ levels: [], interval: LEVEL_INTERVAL });

@@ -14,6 +14,18 @@ export function hasLocale(lang) {
 }
 
 /**
+ * @param {string} lang the language of the text being read
+ * @param {string} interfaceLanguage of VS Code (`en`, `zh-cn`)
+ * @returns {string} the language to say something about it in: its own, else — the extension has no
+ *   translations for it — that of VS Code, else English
+ */
+export function spokenLocale(lang, interfaceLanguage) {
+    if (hasLocale(lang)) return lang;
+    const shown = String(interfaceLanguage ?? '').split('-')[0].toLowerCase();
+    return hasLocale(shown) ? shown : 'en';
+}
+
+/**
  * @param {string} lang a language code
  * @param {string} key of the text
  * @param {Record<string, string | number>} [values] what its `{name}` placeholders become

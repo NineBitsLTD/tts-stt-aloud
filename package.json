@@ -2,7 +2,7 @@
   "name": "tts-stt-md-aloud",
   "displayName": "TTS / STT MD Aloud",
   "description": "Markdown preview that translates the text and reads it aloud; speech settings for all of VS Code in the side bar with system and Piper voices (sherpa-onnx); a formatted view of JSON files",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "publisher": "ninebits",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -34,8 +34,7 @@
     "json"
   ],
   "activationEvents": [
-    "onFileSystem:json-formatted",
-    "onStartupFinished"
+    "onFileSystem:json-formatted"
   ],
   "extensionKind": [
     "ui",
@@ -168,11 +167,6 @@
         "icon": "$(debug-stop)"
       },
       {
-        "command": "tts-stt-md-aloud.playerToggle",
-        "title": "Read Aloud or Pause",
-        "category": "MD Aloud"
-      },
-      {
         "command": "tts-stt-md-aloud.dictate",
         "title": "Dictate into the Editor",
         "category": "MD Aloud",
@@ -272,10 +266,6 @@
         {
           "command": "tts-stt-md-aloud.playerStop",
           "when": "ttsSttMdAloud.playerActive"
-        },
-        {
-          "command": "tts-stt-md-aloud.playerToggle",
-          "when": "false"
         },
         {
           "command": "tts-stt-md-aloud.dictate",

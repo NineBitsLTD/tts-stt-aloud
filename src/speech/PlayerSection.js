@@ -61,7 +61,7 @@ export class PlayerSection {
         this._time.textContent = !speech ? '' : reading ? `${reading.position} / ${reading.duration}` : state.time;
         this._phrase.hidden = reading?.kind !== 'clipboard';
         this._phrase.textContent = reading?.kind === 'clipboard' ? reading.phrase : '';
-        this._note.textContent = speech && !reading && !dictating ? state.note : '';
+        this._note.textContent = speech && !dictating && (!reading || state.waiting) ? state.note : '';
     }
 
     /**

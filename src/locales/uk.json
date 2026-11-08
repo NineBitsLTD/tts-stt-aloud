@@ -1,5 +1,7 @@
 {
 	"player.announce.file": "Читаю файл {name}:",
 	"player.announce.fragment": "Читаю фрагмент файлу {name}, рядок {line}:",
-	"player.announce.clipboard": "Читаю буфер"
+	"player.announce.clipboard": "Читаю буфер",
+	"player.resume.file": "Продовжую читати файл",
+	"player.resume.clipboard": "Продовжую читати буфер"
 }

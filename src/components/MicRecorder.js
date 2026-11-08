@@ -25,7 +25,7 @@ const NOISE_MARGIN = 10 ** (12 / 20);
  * @property {(level: number) => void} [onLevel] the level of the sound from 0 to 1, every 50 ms
  * @property {(state: 'waiting' | 'recording') => void} [onState] waiting for the speech, recording it
  *
- * @typedef {'pause' | 'limit' | 'stopped' | 'no-speech' | 'cancelled'} RecordingEnd pause: the
+ * @typedef {'pause' | 'limit' | 'stopped' | 'no-speech' | 'cancelled' | 'interrupted'} RecordingEnd interrupted: a person began to record (`SpeechToText`); pause: the
  *   speech was followed by silence; limit: the longest speech; stopped: by `finish` or the
  *   recorder; no-speech: none began in time; cancelled: stopped before the speech began
  *

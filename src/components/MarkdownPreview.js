@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { localeText, spokenLocale } from '../utils/localeText';
 import { createNonce } from '../utils/createNonce';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
@@ -216,7 +217,7 @@ export class MarkdownPreview {
                 break;
             case 'speak':
                 try {
-                    reply(await this._tts.speak(String(message.text ?? ''), message.options ?? {}, panel));
+                    reply(await this._tts.speak(String(message.text ?? ''), MarkdownPreview._speakOptions(message.options), panel));
                 } catch (error) {
                     vscode.window.showWarningMessage(String(error?.message || error));
                     reply(false);
@@ -295,6 +296,15 @@ export class MarkdownPreview {
         const parsed = start >= 0 && end > start ? JSON.parse(answer.slice(start, end + 1)) : null;
         if (!Array.isArray(parsed)) throw new Error('The language model gave no translation');
         return { texts: texts.map((text, index) => (typeof parsed[index] === 'string' && parsed[index].trim() ? parsed[index] : text)) };
+    }
+
+    /**
+     * @param {any} options of a phrase, from the webview
+     * @returns {object} with what is said on going on after another window interrupted the reading
+     */
+    static _speakOptions(options) {
+        const resumeLang = spokenLocale(options?.lang, vscode.env.language);
+        return { resumeText: localeText(resumeLang, 'player.resume.file'), resumeLang, ...options };
     }
 
     /**

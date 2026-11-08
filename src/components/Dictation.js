@@ -112,12 +112,18 @@ export class Dictation {
     async _listen(session) {
         try {
             while (this._session === session) {
-                const { wav } = await this._stt.listen(LIMITS, this);
+                const { wav, ended } = await this._stt.listen(LIMITS, this, { keep: true });
                 if (wav) session.queue = session.queue.then(() => this._recognize(session, wav));
+                if (ended === 'interrupted' && this._session === session) {
+                    vscode.window.showInformationMessage('Dictation stopped: a recording was started with the microphone.');
+                    this.stop();
+                }
             }
         } catch (error) {
             vscode.window.showErrorMessage(`Dictation failed: ${error?.message || error}`);
             if (this._session === session) this.stop();
+        } finally {
+            this._stt.releaseMicrophone(this);
         }
     }
 

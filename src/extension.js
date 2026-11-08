@@ -39,7 +39,7 @@ export function activate(context) {
 		tts: {
 			/** @returns the voices offered: the checked ones, all of them when none is checked */
 			voices: () => tts.offeredVoices(),
-			/** @returns true when spoken to the end, false when stopped or the speech is off */
+			/** @returns true when spoken to the end, false when stopped or the speech is off (options.priority: 0–2 among the windows of VS Code; options.resumeText, resumeLang: what is said first when the speech goes on after another window interrupted it) */
 			speak: (text, options) => tts.speak(String(text ?? ''), options ?? {}, 'api'),
 			/** Ends the speech asked for through this API. */
 			stop: () => tts.stop('api'),
@@ -48,7 +48,8 @@ export function activate(context) {
 			/**
 			 * Records speech from the microphone (only while STT is on, else it rejects): waits for it
 			 * to begin (waitMs, 5 s), ends it after a pause (silenceMs, 1 s) or at its longest (maxMs, 10 s),
-			 * and recognizes it with the Whisper driver.
+			 * and recognizes it with the Whisper driver. It waits while the microphone is in use; a person
+			 * pressing a record button ends it with what it has (ended: 'interrupted').
 			 * @returns {{ wav: Buffer | null, duration: number, ended: string, text: string | null, lang: string, error?: string }}
 			 *   wav: null when no speech began; text: null when not recognized (error: why)
 			 */

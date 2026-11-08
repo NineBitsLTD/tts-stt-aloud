@@ -12,7 +12,9 @@
  * @returns {boolean} whether the voice speaks the language
  */
 export function speaksLanguage(voice, lang) {
-    return !!lang && voice.lang.toLowerCase().replace('_', '-').startsWith(lang.toLowerCase());
+    const tag = voice.lang.toLowerCase().replace('_', '-');
+    // Norwegian: nb_NO of the systems, no_NO of Piper
+    return !!lang && (tag.startsWith(lang.toLowerCase()) || (lang.toLowerCase() === 'nb' && tag.startsWith('no')));
 }
 
 /**

@@ -1,11 +1,16 @@
 /** @typedef {{ text: string, start: number, end: number }} PhraseSpan a phrase and where it is in its text */
 
+/** Marks that end a phrase wherever they stand (no space follows them in Chinese, Japanese; Arabic, Hindi … have their own). */
+const CLOSING_MARKS = '。！？｡؟۔।॥։።။។';
+const PHRASE = new RegExp(`(?:[^.!?…${CLOSING_MARKS}]|[.!?…](?=[\\p{L}\\p{N}])(?![\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]))+[.!?…${CLOSING_MARKS}]*`, 'gu');
+const PHRASE_END = new RegExp(`[.!?…]+(?=\\s|$)|[${CLOSING_MARKS}]+`, 'gu');
+
 /**
  * @param {string} text
  * @returns {PhraseSpan[]} its phrases (sentences) with their places; "v2.1" or "app.js" do not end one
  */
 export function phraseSpans(text) {
-    return [...text.matchAll(/(?:[^.!?…]|[.!?…](?=[\p{L}\p{N}]))+[.!?…]*/gu)].flatMap((match) => {
+    return [...text.matchAll(PHRASE)].flatMap((match) => {
         const phrase = match[0].trim();
         if (!/[\p{L}\p{N}]/u.test(phrase)) return [];
         const start = match.index + match[0].search(/\S/u);
@@ -36,23 +41,16 @@ export function clock(ms) {
 /**
  * @param {string} text what is read
  * @param {number} [rate] the speed of the speech
- * @returns {number} about how long reading it takes, in ms (letters and digits a second, a pause per phrase)
+ * @returns {number} about how long reading it takes, in ms (letters, syllables, ideographs and digits a
+ *   second, a pause per phrase)
  */
 export function estimateReading(text, rate = 1) {
     const count = pattern => (text.match(pattern) ?? []).length;
-    const seconds = count(/[а-яёіїєґ]/gi) / 15 + count(/[a-z]/gi) / 13 + count(/\d/g) * 0.4 + (count(/[.!?…]+(?=\s|$)/g) + 1) * 0.2;
+    const cyrillic = count(/\p{Script=Cyrillic}/gu);
+    const latin = count(/\p{Script=Latin}/gu);
+    const ideographs = count(/[\p{Script=Han}\p{Script=Hangul}]/gu);
+    const kana = count(/[\p{Script=Hiragana}\p{Script=Katakana}]/gu);
+    const others = count(/\p{L}/gu) - cyrillic - latin - ideographs - kana;
+    const seconds = cyrillic / 15 + (latin + others) / 13 + ideographs / 5 + kana / 8 + count(/\d/g) * 0.4 + (count(PHRASE_END) + 1) * 0.2;
     return (seconds * 1000) / (rate || 1);
-}
-
-/**
- * @param {string} text
- * @returns {string} its language by its letters: English when Latin letters are more than twice the
- *   Cyrillic ones, else Russian, Ukrainian with its own letters
- */
-export function guessLanguage(text) {
-    const sample = text.slice(0, 4000);
-    const cyrillic = (sample.match(/[а-яёіїєґ]/gi) ?? []).length;
-    const latin = (sample.match(/[a-z]/gi) ?? []).length;
-    if (latin > cyrillic * 2) return 'en';
-    return /[іїєґ]/i.test(sample) ? 'uk' : 'ru';
 }

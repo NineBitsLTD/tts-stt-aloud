@@ -2,6 +2,13 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.5.0]
+
+- The time of the player is shown only in the Player section: no status bar item, and the extension no longer activates at the startup of VS Code
+- The language of a text is told for other alphabets and languages: by the script (Chinese, Japanese, Korean, Arabic, Persian, Urdu, Hebrew, Greek, Hindi, Thai and others), the letters of Cyrillic languages (also Serbian, Macedonian, Kazakh, Belarusian, Bulgarian, Mongolian) and, in Latin letters, the common words and letters of 21 languages; a short phrase with too little to tell takes the language of the text around it. It serves the voices of the player and the preview, and the source of translation
+- The speaker and the microphone are shared by the windows of VS Code through a file of the temporary folder: a speech or a recording waits for its turn; a higher priority (the test buttons, then reading and dictation, then other extensions, which may give `priority`) pauses the speech being played, which says that it goes on (`player.resume.*` of the locales, or the `resumeText` another extension gives to `speak`) and says its phrase again when the speaker is free; the microphone: a person (Dictate, Test microphone) stops the recording going on, which ends with what it has (`ended: 'interrupted'`), an application waits for it to be free, also within one window (`record` is no longer rejected while the microphone is busy)
+- Phrases end at the marks of other scripts (。!? ؟ ۔ । and others), and the time of reading counts their letters and ideographs
+
 ## [1.4.0]
 
 - A player in the title of any text editor and in a new **Player** section of the side bar
