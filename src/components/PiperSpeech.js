@@ -10,11 +10,11 @@ import { readSherpaMeta } from './PiperModels';
 const t = vscode.l10n.t;
 
 /** @typedef {import('./PiperModels').PiperModels} PiperModels */
-/** @typedef {{ name: string, lang: string, score: number, path: string }} PiperVoice a ready model as a voice */
+/** @typedef {{ name: string, lang: string, score: number, path: string, sid?: number }} PiperVoice a ready model as a voice; sid: its speaker in the model (none: the first) */
 /** @typedef {{ index: number, letter: string, vowels: number }} StressMark the stressed vowel of a word: its index among the vowel letters, the letter, how many there are */
 
 /** Vowels of the IPA espeak-ng writes; the reduced ones, which a stress makes full again. */
-const IPA_VOWELS = 'aɑɐʌæeɛəɜiɪɨoɔɒuʊyʉɯɵøœᵻ';
+export const IPA_VOWELS = 'aɑɐʌæeɛəɜiɪɨoɔɒuʊyʉɯɵøœᵻ';
 const REDUCED = 'ʌəɐɪᵻɨʊ';
 /** The stressed vowel espeak-ng writes for a Russian vowel letter. */
 const STRESSED = { а: 'ɑ', я: 'ɑ', о: 'o', ё: 'ɵ', у: 'u', ю: 'u', ы: 'y', и: 'i', е: 'e', э: 'ɛ' };
@@ -96,6 +96,8 @@ export class PiperSpeech {
      */
     constructor(context, models) {
         this._extension = context.extensionUri.fsPath;
+        /** What the messages call this driver. */
+        this._name = 'Piper';
         this._models = models;
         this._reader = new EnglishReading(join(context.extensionUri.fsPath, 'resources', 'cmudict', 'cmudict.dict.gz'));
         /** @type {{ addon: any, phonemizer: any } | null | undefined} undefined: not loaded yet; null: missing */
@@ -111,6 +113,13 @@ export class PiperSpeech {
     unavailable() {
         this._load();
         return this._missing;
+    }
+
+    /**
+     * @returns {string} what to do for a voice to speak with
+     */
+    noVoice() {
+        return t('{0} has no voice model ready: add one under Add driver → {0}.', this._name);
     }
 
     /**
@@ -132,9 +141,8 @@ export class PiperSpeech {
         if (!runtime) throw new Error(this._missing);
         const voices = await this.voices();
         const model = voices.find(item => item.name === voice) ?? voices.find(item => lang && speaksLanguage(item, lang)) ?? voices[0];
-        if (!model) throw new Error(t('Piper has no voice model ready: add one under Add driver → Piper.'));
-        const espeakVoice = (await readSherpaMeta(model.path))?.voice || model.lang.slice(0, 2).toLowerCase() || 'en-us';
-        const phonemes = this._phonemize(runtime.phonemizer, text, espeakVoice);
+        if (!model) throw new Error(this.noVoice());
+        const phonemes = await this._codepoints(runtime, text, model);
         const engine = await this._engine(runtime.addon, model.path);
         if (!phonemes.some(sentence => sentence.length)) return WavAudio.fromFloat32([], 22050);
         // Electron (the extension host of VS Code) allows no external buffers (the V8 memory cage):
@@ -144,12 +152,23 @@ export class PiperSpeech {
             audio = await runtime.addon.offlineTtsGenerateAsyncWithConfig(engine, {
                 text: '',
                 enableExternalBuffer: false,
-                generationConfig: { sid: 0, speed: rate, phonemeCodepoints: phonemes },
+                generationConfig: { sid: model.sid ?? 0, speed: rate, phonemeCodepoints: phonemes },
             });
         } catch (error) {
-            throw new Error(t('Piper (sherpa-onnx) could not speak with {0}: {1}', model.name, error?.message || error));
+            throw new Error(t('{0} (sherpa-onnx) could not speak with {1}: {2}', this._name, model.name, error?.message || error));
         }
         return WavAudio.fromFloat32(audio.samples, audio.sampleRate);
+    }
+
+    /**
+     * @param {{ phonemizer: any }} runtime
+     * @param {string} text
+     * @param {PiperVoice} model
+     * @returns {Promise<number[][]>} what the model takes for the text: code points, a list a sentence
+     */
+    async _codepoints(runtime, text, model) {
+        const espeakVoice = (await readSherpaMeta(model.path))?.voice || model.lang.slice(0, 2).toLowerCase() || 'en-us';
+        return this._phonemize(runtime.phonemizer, text, espeakVoice);
     }
 
     /**
@@ -190,7 +209,7 @@ export class PiperSpeech {
             this._runtime = { addon: loadRuntime(this._extension, 'native/sherpa-onnx.node'), phonemizer: loadRuntime(this._extension, 'piper-phonemize/index.js') };
         } catch (error) {
             this._runtime = null;
-            this._missing = t('Piper cannot speak in this build for {0}-{1}: sherpa-onnx or piper-phonemize is missing ({2}).', process.platform, process.arch, error?.message || error);
+            this._missing = t('{0} cannot speak in this build for {1}-{2}: sherpa-onnx or piper-phonemize is missing ({3}).', this._name, process.platform, process.arch, error?.message || error);
         }
         return this._runtime;
     }

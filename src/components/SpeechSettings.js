@@ -34,7 +34,7 @@ const RANGES = {
  *   offered ('' : none)
  * @property {string[]} drivers drivers offered (TTS: besides System)
  * @property {SpeechServer[]} servers external servers
- * @property {Record<string, string[]>} models the files of the models by driver (Piper: `.onnx`; Whisper: its encoder)
+ * @property {Record<string, string[]>} models the files of the models by driver (Piper, Silero: `.onnx`; Whisper: its encoder)
  * @typedef {SectionSettings & { active: string[], rate: number, voice: string, voices: Record<string, string[]> }} TtsSettings
  *   active: the drivers speaking together, offered ones, at least one (`driver`: the first of them);
  *   voice: the key of the voice tested (`<driver>:<name>`); voices: the checked voices by driver

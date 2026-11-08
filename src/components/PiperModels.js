@@ -42,13 +42,14 @@ async function readConfig(path) {
 
 /**
  * The metadata sherpa-onnx needs in a Piper model (`model_type`: vits, `comment`: piper, language,
- * voice, has_espeak, n_speakers, sample_rate), written by its conversion script at the end of the model.
+ * voice, has_espeak, n_speakers, sample_rate), written by its conversion script at the end of the model
+ * (a model of Silero has them too, but it takes letters: it is not a voice of Piper).
  * @param {string} path of an `.onnx` model
  * @returns {Promise<Record<string, string> | null>} null: not prepared for sherpa-onnx
  */
 export async function readSherpaMeta(path) {
     const meta = await readOnnxMetadata(path);
-    return meta?.model_type && meta.comment === 'piper' ? meta : null;
+    return meta?.model_type && meta.comment === 'piper' && !meta.silero_version ? meta : null;
 }
 
 /**

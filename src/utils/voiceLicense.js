@@ -1,7 +1,8 @@
 /**
  * @typedef {'free' | 'attribution' | 'sharealike' | 'noncommercial' | 'copyleft' | 'custom' | 'unknown'} VoiceLicenseKind
- * @typedef {{ label: string, kind: VoiceLicenseKind, text: string, url: string }} VoiceLicense label: short, for the
- *   list; text: as its card says it; url: of the dataset the voice was trained on
+ * @typedef {{ label: string, kind: VoiceLicenseKind, text: string, url: string, scope?: 'model' }} VoiceLicense label: short, for the
+ *   list; text: as its card says it; url: of the dataset the voice was trained on; scope: `model` when it is the license of
+ *   the model itself, not of its dataset
  */
 
 /** The first that matches tells the license (the words are joined by hyphens, in lower case). */

@@ -7,7 +7,7 @@ import { fixed, t } from './t';
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
 /** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
-/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean, license?: import('../utils/voiceLicense').VoiceLicense | null }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes; license: of a voice of Piper */
+/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean, license?: import('../utils/voiceLicense').VoiceLicense | null }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes; license: of a voice of Piper, of a model of Silero */
 /** @typedef {{ name: string, action: string, done: number, total: number }} PendingModel a model being installed (downloading, preparing): the bytes written of the total (0: unknown) */
 /** @typedef {{ models: VoiceModel[], pending: PendingModel[] }} DriverModels the voice models of a driver, those being installed */
 /** @typedef {import('./VoicePicker').PickerVoice} PickerVoice */
@@ -29,6 +29,17 @@ const MODEL_TEXTS = {
         problem: t('not prepared for sherpa-onnx'),
         disk: t('A Piper model with its .onnx.json next to it is copied into the storage of the extension and prepared there for sherpa-onnx (the file stays as it is); a model of sherpa-onnx (vits-piper-…, with tokens.txt next to it) is used where it is.'),
         catalog: t('The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded.'),
+    },
+    silero: {
+        title: t('Silero voice models'),
+        add: t('Add voice model'),
+        loading: t('Loading the list of models…'),
+        noMatch: t('No model matches'),
+        dialog: t('Add Silero Model'),
+        empty: t('No voice models yet'),
+        problem: t('not a joined model of Silero, or its tokens.txt is missing'),
+        disk: t('Choose any of the four files of v5_6_ru of silero-tts-onnx (acoustic_v5_6_ru.onnx, dur_predictor_v5_6_ru.onnx, pitch_predictor_v5_6_ru.onnx, vocoder_v5_6_ru.onnx), the others next to it: they are joined into one model in the storage of the extension and stay as they are. A model joined before, with tokens.txt next to it, is used where it is.'),
+        catalog: t('Silero v5_6_ru by the Silero Team (silero-models), exported to ONNX by silero-tts-onnx; its four files are downloaded from that project and joined into one model. CC BY-NC-SA 4.0, non-commercial use only: https://github.com/snakers4/silero-models/blob/master/LICENSE. The stress comes from espeak-ng and may be wrong in some words; questions are read as statements.'),
     },
     whisper: {
         title: t('Whisper models'),
@@ -466,7 +477,7 @@ export class SpeechSection {
     }
 
     /**
-     * @param {Driver} driver offered, with models (Piper, Whisper)
+     * @param {Driver} driver offered, with models (Piper, Silero, Whisper)
      * @param {DriverModels} models
      * @returns {HTMLElement} its models (× removes one) and "Add model"
      */

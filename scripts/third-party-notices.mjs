@@ -50,7 +50,7 @@ const notices = `# Third-party notices
 
 The package of TTS / STT Aloud (the VSIX) holds the components below. Because it holds piper-phonemize and espeak-ng, the package as a whole is distributed under the GNU General Public License, version 3 or later (\`COPYING\`). The source code of the extension itself is under the MIT license (\`LICENSE\`): https://github.com/NineBitsLTD/tts-stt-aloud
 
-The voice models of Piper and the models of Whisper are not part of the package: they are downloaded or chosen by the user, each under its own license.
+The voice models of Piper and Silero and the models of Whisper are not part of the package: they are downloaded or chosen by the user, each under its own license.
 
 ${COMPONENTS.map(sectionOf).join('\n\n')}
 `;

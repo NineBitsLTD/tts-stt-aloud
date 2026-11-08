@@ -15,7 +15,7 @@ const t = vscode.l10n.t;
  * @property {string} key `<driver>:<name>`, unique among the drivers
  * @property {string} name its name for its driver
  * @property {string} lang
- * @property {number} [score] its quality: 2 Enhanced / Premium system voices, 1 Piper, 0 other system voices
+ * @property {number} [score] its quality: 2 Enhanced / Premium system voices, 1.5 Silero, 1 Piper, 0 other system voices
  * @property {string} [sample] a phrase the system gives to try it
  * @property {string} driver the id of its driver
  * @property {string} driverName
@@ -44,7 +44,7 @@ const SAMPLES = {
  * active drivers, the volume and the speed of the settings. The voices of the active drivers are
  * offered together (keyed `<driver>:<name>`); a phrase is spoken by the driver of its voice — the
  * voice given, else the best of its language: a checked one first, then by quality. The voices of
- * the system (`SystemSpeech`) and of Piper (`PiperSpeech`, sherpa-onnx) are rendered to audio and
+ * the system (`SystemSpeech`), of Piper (`PiperSpeech`) and of Silero (`SileroSpeech`), both through sherpa-onnx, are rendered to audio and
  * played by `AudioPlayer` — the volume is a share of the computer's, the levels go to `onLevels` —;
  * the phrase to come is rendered while one is spoken. One speech at a time: a new one ends the one
  * being spoken, whoever asked for it. Among the windows of VS Code the speaker is shared through
@@ -55,11 +55,11 @@ export class TextToSpeech {
 
     /**
      * @param {SpeechSettings} settings
-     * @param {PiperSpeech} piper
+     * @param {Record<string, PiperSpeech>} neural the drivers speaking through sherpa-onnx, by id (Piper, Silero)
      */
-    constructor(settings, piper) {
+    constructor(settings, neural) {
         this._settings = settings;
-        this._piper = piper;
+        this._neural = neural;
         this._system = new SystemSpeech();
         this._player = new AudioPlayer();
         /** @type {vscode.EventEmitter<{ levels: number[], interval: number }>} */
@@ -119,7 +119,8 @@ export class TextToSpeech {
         const { drivers } = await this.status();
         const lists = await Promise.all(drivers.filter(driver => driver.available).map(async (driver) => {
             const checked = new Set(settings.voices[driver.id] ?? []);
-            const voices = driver.id === 'piper' ? (await this._piper.voices()).map(({ name, lang, score }) => ({ name, lang, score })) : await this._systemVoicesOf(refresh);
+            const neural = this._neural[driver.id];
+            const voices = neural ? (await neural.voices()).map(({ name, lang, score }) => ({ name, lang, score })) : await this._systemVoicesOf(refresh);
             return voices.map(voice => ({ ...voice, key: `${driver.id}:${voice.name}`, driver: driver.id, driverName: driver.name, checked: checked.has(voice.name) }));
         }));
         return lists.flat();
@@ -314,14 +315,12 @@ export class TextToSpeech {
     async _status(id) {
         const name = this._settings.driverName('tts', id);
         if (id === 'system') return { id, name, available: true, message: '' };
-        if (id === 'piper') {
-            const message = this._piper.unavailable()
-                || ((await this._piper.voices()).length ? '' : t('Piper has no voice model ready for sherpa-onnx: add one under Add driver → Piper.'));
+        const neural = this._neural[id];
+        if (neural) {
+            const message = neural.unavailable() || ((await neural.voices()).length ? '' : neural.noVoice());
             return { id, name, available: !message, message };
         }
-        const message = id.startsWith('external:') ? t('{0}: speaking through external servers is not supported yet.', name)
-            : t('{0} is not installed yet: its models and tools come in a later version.', name);
-        return { id, name, available: false, message };
+        return { id, name, available: false, message: t('{0}: speaking through external servers is not supported yet.', name) };
     }
 
     /**
@@ -362,6 +361,6 @@ export class TextToSpeech {
      * @returns {{ render: (text: string, phrase: { voice?: string, rate: number, lang?: string }) => Promise<Buffer> }}
      */
     _engine(driver) {
-        return driver === 'piper' ? this._piper : this._system;
+        return this._neural[driver] ?? this._system;
     }
 }

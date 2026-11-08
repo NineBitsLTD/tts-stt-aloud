@@ -4,6 +4,8 @@ import { migrateOldName } from './components/migrateOldName';
 import { PiperModels } from './components/PiperModels';
 import { PiperSpeech } from './components/PiperSpeech';
 import { PreviewHighlight } from './components/PreviewHighlight';
+import { SileroModels } from './components/SileroModels';
+import { SileroSpeech } from './components/SileroSpeech';
 import { SpeechPanel } from './components/SpeechPanel';
 import { SpeechSettings } from './components/SpeechSettings';
 import { SpeechToText } from './components/SpeechToText';
@@ -20,22 +22,23 @@ import { WhisperRecognizer } from './components/WhisperRecognizer';
 export async function activate(context) {
 	// Before version 2 it was tts-stt-md-aloud: its settings and models come over once
 	await migrateOldName(context);
-	// Speech settings of VS Code (ttsSttAloud.*), the text to speech (system voices, Piper through
-	// sherpa-onnx with its voice models) and the microphone with Whisper recognizing (sherpa-onnx) that follow them
+	// Speech settings of VS Code (ttsSttAloud.*), the text to speech (system voices, Piper and Silero through
+	// sherpa-onnx with their models) and the microphone with Whisper recognizing (sherpa-onnx) that follow them
 	const settings = new SpeechSettings(context);
 	const piper = new PiperModels(context, settings);
-	const tts = new TextToSpeech(settings, new PiperSpeech(context, piper));
+	const silero = new SileroModels(context, settings);
+	const tts = new TextToSpeech(settings, { piper: new PiperSpeech(context, piper), silero: new SileroSpeech(context, silero) });
 	const whisper = new WhisperModels(context, settings);
 	const stt = new SpeechToText(context, settings, new WhisperRecognizer(context, whisper));
-	context.subscriptions.push(settings, piper, whisper, tts.register(), stt.register());
+	context.subscriptions.push(settings, piper, silero, whisper, tts.register(), stt.register());
 	// .json files: a formatted view next to the raw text, saved compact
 	context.subscriptions.push(new JsonFormattedView().register());
 	// Any text editor: read aloud (its selection, else its text; or the clipboard) and dictated into
 	const player = new TextPlayer(settings, tts, new PreviewHighlight(context));
 	const dictation = new Dictation(settings, tts, stt, player);
 	context.subscriptions.push(player.register(), dictation.register());
-	// The speaker of the activity bar: the side bar of the speech settings (with the models of Piper and Whisper) and the player
-	context.subscriptions.push(new SpeechPanel(context, settings, tts, stt, { piper, whisper }, { player, dictation }).register());
+	// The speaker of the activity bar: the side bar of the speech settings (with the models of Piper, Silero and Whisper) and the player
+	context.subscriptions.push(new SpeechPanel(context, settings, tts, stt, { piper, silero, whisper }, { player, dictation }).register());
 	return {
 		tts: {
 			/** @returns the voices offered: the checked ones, all of them when none is checked */

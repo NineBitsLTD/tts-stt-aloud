@@ -10,13 +10,26 @@ const VALUE_TAG = 0x12;
  * @param {number} offset
  * @returns {[number, number] | null} a varint and the offset after it (null: not one)
  */
-function readVarint(buffer, offset) {
+export function readVarint(buffer, offset) {
     let value = 0;
     for (let shift = 0, index = offset; index < buffer.length && shift < 35; shift += 7, index++) {
         value += (buffer[index] & 0x7f) * 2 ** shift;
         if (!(buffer[index] & 0x80)) return [value, index + 1];
     }
     return null;
+}
+
+/**
+ * @param {number} value below 2^32
+ * @returns {Buffer} its varint
+ */
+export function writeVarint(value) {
+    const bytes = [];
+    do {
+        bytes.push((value & 0x7f) | (value > 0x7f ? 0x80 : 0));
+        value >>>= 7;
+    } while (value);
+    return Buffer.from(bytes);
 }
 
 /**
@@ -76,15 +89,7 @@ export async function readOnnxMetadata(path, tail = 4096) {
  *   as `onnx.save` writes them (byte for byte)
  */
 export function encodeOnnxMetadata(meta) {
-    const varint = (value) => {
-        const bytes = [];
-        do {
-            bytes.push((value & 0x7f) | (value > 0x7f ? 0x80 : 0));
-            value >>>= 7;
-        } while (value);
-        return Buffer.from(bytes);
-    };
-    const field = (tag, bytes) => Buffer.concat([Buffer.from([tag]), varint(bytes.length), bytes]);
+    const field = (tag, bytes) => Buffer.concat([Buffer.from([tag]), writeVarint(bytes.length), bytes]);
     return Buffer.concat(Object.entries(meta).map(([key, value]) => field(META_TAG,
         Buffer.concat([field(KEY_TAG, Buffer.from(key)), field(VALUE_TAG, Buffer.from(String(value)))]))));
 }

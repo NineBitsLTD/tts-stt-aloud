@@ -179,7 +179,8 @@ export class ModelDialog {
      * @param {import('../utils/voiceLicense').VoiceLicense} license
      * @returns {string} what the dialog says of it
      */
-    static _licenseLine({ label, kind }) {
+    static _licenseLine({ label, kind, scope }) {
+        if (scope === 'model') return t('License of the model: {0} — {1}.', t(label), LICENSE_NOTES[kind]);
         if (kind === 'unknown') return t('The license of its dataset is not stated: check it before commercial use.');
         return LICENSE_NOTES[kind] ? t('License of its dataset: {0} — {1}.', t(label), LICENSE_NOTES[kind]) : t('License of its dataset: {0}.', t(label));
     }

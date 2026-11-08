@@ -1,6 +1,6 @@
 # TTS / STT Aloud
 
-A Visual Studio Code extension that reads any text editor or the clipboard aloud with a player — with the voices of your system or offline Piper voices —, recognizes speech offline with Whisper and dictates into the editor, keeps the text to speech and speech to text settings for all of VS Code in the side bar (other extensions use them through its API), and shows JSON files formatted.
+A Visual Studio Code extension that reads any text editor or the clipboard aloud with a player — with the voices of your system or offline Piper and Silero voices —, recognizes speech offline with Whisper and dictates into the editor, keeps the text to speech and speech to text settings for all of VS Code in the side bar (other extensions use them through its API), and shows JSON files formatted.
 
 ## Open source
 
@@ -16,7 +16,8 @@ How to use it, the requirements and how to install the extension or build it fro
   - **TTS** — on / off by the title; **Volume** of the speech, in % of the volume set on the computer (the system volume is not changed); **Speed** (0.5× – 2×); a **level** meter of the sound being spoken; the **drivers** — check several in the drop-down to have their voices together (each phrase is spoken by the driver of its voice): System, and the drivers added with **Add driver**: Piper, Silero, and external servers added with **Add External** (name, address, key — the key is kept in VS Code's secret storage; × removes a server); under Piper, its **voice models** for [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), the engine Piper is to speak with — **Add voice model** chooses an `.onnx` file on the disk — a model of sherpa-onnx (vits-piper-…, with `tokens.txt` next to it) is used where it is; a Piper model with its `.onnx.json` next to it is copied into the extension's storage and prepared there, the file stays as it is — or downloads a voice from the [Piper voices](https://huggingface.co/rhasspy/piper-voices) into the extension's storage and prepares it for sherpa-onnx (the progress is in a notification, which can cancel it, and in the list: a spinner and the megabytes downloaded of the total); the license of a voice is shown when it is chosen and in the list; hovering a model shows a folder button — its file in Finder / File Explorer — and × to remove it (a downloaded one with its files); the **voices** of the drivers with check boxes, each with its driver — the checked ones are picked automatically for reading aloud and offered to other extensions; otherwise Auto takes the best voice of the language: Enhanced / Premium system voices, then Piper, then the other system voices —, the voice chosen in the list is the one **Test voice** speaks with.
   - **STT** — on / off: whether other extensions may use the microphone and the **Dictate** button is there (the switch does not turn the microphone on); **Mic** gain; a **level** meter of the microphone while it records; the **driver** — Whisper (offered from the start) or external servers (Add driver / Add External as in TTS); **Whisper** recognizes speech offline with a model added under it — **Add model** chooses a Whisper model of sherpa-onnx on the disk (its encoder, with the decoder and tokens next to it) or downloads one (tiny … large-v3, turbo: all without `.en` are multilingual, 99 languages, but distil-large-v3; small or larger for Russian) —, the **Model** and the **Language** (Auto, as VS Code, or a language of the model) are chosen below; **Test microphone** — waits 5 s for you to speak, records until you pause for 1 s (10 s at most; Stop ends it), plays the recording back and shows the recognized text below. The recording of the last test is kept until the next one. The microphone is recorded with [SoX](https://sourceforge.net/projects/sox/) or [FFmpeg](https://ffmpeg.org/) — install one of them —, or `arecord` on Linux; macOS asks once whether VS Code may use the microphone.
   - **Piper** speaks, offline, once a voice model is added: its voices are the models. It runs on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (a native module built for the machine the VSIX is packed on) with [piper-phonemize](https://github.com/csukuangfj/piper-phonemize) (espeak-ng in WASM) turning the text into phonemes; Russian text is prepared first as in claude-ai — numbers, units, versions, file names and English words (read through [CMUdict](https://github.com/cmusphinx/cmudict) with their stress) become Russian words.
-  - Silero and external servers can be added and chosen already; speaking and recognizing through them come in a later version.
+  - **Silero** speaks Russian, offline, once its model is added: five voices of one model (`aidar`, `baya`, `kseniya`, `eugene`, `xenia`, 48 kHz), through the same sherpa-onnx as Piper. Its license is CC BY-NC-SA 4.0: non-commercial use only. The stress of the words comes from espeak-ng and may be wrong in some of them; questions are read as statements.
+  - External servers can be added and chosen already; speaking and recognizing through them come in a later version.
   - For other extensions: `const api = await vscode.extensions.getExtension('ninebits.tts-stt-aloud').activate()` — `api.tts` has `voices()` (with the `key` and the driver of each voice), `speak(text, { voice, lang, rate, priority, resumeText, resumeLang })` (`voice`: a key or a name; `priority`: 0–2, among the windows of VS Code; `resumeText`: what is said first when the speech goes on after another window interrupted it) and `stop()`; `api.stt` has `record({ waitMs, maxMs, silenceMs })` (the speech as a WAV file and its text recognized with Whisper; only while STT is on; it waits while the microphone is in use, and a person pressing a record button ends it with what it has: `ended: 'interrupted'`) and `stop()`. Or the commands `tts-stt-aloud.speak` (text, options), `tts-stt-aloud.stopSpeaking`, `tts-stt-aloud.voices`, `tts-stt-aloud.record` (limits), `tts-stt-aloud.stopRecording`.
 - **Several windows of VS Code** — the speaker and the microphone are shared: a speech waits while another window speaks. A speech of a higher priority (**Test voice** first, then other extensions, reading a file or the clipboard last) pauses the one being played, which says that it goes on ("Continuing to read the file") and repeats its phrase when the speaker is free; a person pressing Dictate or Test microphone stops the recording going on, an application waits for the microphone to be free.
 - **Formatted JSON** — **Open Formatted JSON** in the editor title of a `.json` / `.jsonc` file shows it indented (JSONC comments and trailing commas are left out); saving it writes the file compact, without line breaks (asked once per file and session). **Open as Raw JSON** goes back to the file as it is written, which saves it unchanged.
@@ -57,6 +58,16 @@ The **System** driver is there from the start. To have better voices, install th
 3. Open **Drivers** and check **Piper** too (keep **System** checked to have both): the voices of the checked drivers are in one list, each with its driver (`· Piper`, `· System`).
 4. In the list of voices click a name to choose the voice of **Test voice**, and check the voices that Auto should pick first (they are offered to other extensions too). Hover a model to see its buttons: the folder shows its file in Finder / File Explorer, × removes it (a downloaded one with its files).
 
+### Silero voices (offline, Russian)
+
+Silero publishes its models for PyTorch only. The extension uses the export of `v5_6_ru` to ONNX by [silero-tts-onnx](https://github.com/some1-in-here/silero-tts-onnx) and joins its four files into one model; neither Python nor PyTorch is needed. The model is by the [Silero Team](https://github.com/snakers4/silero-models) under [CC BY-NC-SA 4.0](https://github.com/snakers4/silero-models/blob/master/LICENSE): **non-commercial use only**.
+
+1. In TTS click **Add driver** and check **Silero**.
+2. Under Silero click **Add voice model**, then either
+   - **Download** — choose `v5_6_ru`, read its license and click **OK** (174 MB; the progress is shown as for Piper), or
+   - **File on the disk** — **Browse…** to any of `acoustic_v5_6_ru.onnx`, `dur_predictor_v5_6_ru.onnx`, `pitch_predictor_v5_6_ru.onnx`, `vocoder_v5_6_ru.onnx` from the [releases of silero-tts-onnx](https://github.com/some1-in-here/silero-tts-onnx/releases), the others next to it: they are joined into the storage of the extension and stay as they are.
+3. Open **Drivers** and check **Silero**: its voices are in the list, each with its driver (`· Silero`). Among the voices of Russian, Auto takes a checked one first, then Enhanced / Premium system voices, then Silero, then Piper.
+
 ### Speech recognition (offline, Whisper)
 
 1. Install a recorder of the microphone: [SoX](https://sourceforge.net/projects/sox/) (`brew install sox` on macOS, `sudo apt install sox` on Debian / Ubuntu) or [FFmpeg](https://ffmpeg.org/); on Linux `arecord` (alsa-utils) works too.
@@ -72,18 +83,18 @@ The **System** driver is there from the start. To have better voices, install th
 The section says what is missing under its controls:
 
 - *No recorder for the microphone: install SoX (sox) or FFmpeg (ffmpeg).* — install one of them (step 1 above); VS Code started from the Dock on macOS also finds them in `/opt/homebrew/bin` and `/usr/local/bin`.
-- *Piper cannot speak in this build for …* — the package was packed on another platform: it holds the native module of sherpa-onnx for that one; pack it on this machine (`npm run pack`). Whisper needs the same module.
+- *Piper (or Silero) cannot speak in this build for …* — the package was packed on another platform: it holds the native module of sherpa-onnx for that one; pack it on this machine (`npm run pack`). Whisper needs the same module.
 - *Whisper has no model ready* / *Piper … not prepared for sherpa-onnx* — add a model as described above; a model shown with a warning is missing its files.
 - A voice installed in the system is not in the list — hide and show the side bar again (or **Developer: Reload Window**).
 - *Waiting for the speech in another window…* / *Waiting for the microphone: another window is using it* — the device is in use; it goes on by itself when it is free, **Stop** ends the waiting.
 
-Downloads (Piper voices, Whisper models) come from Hugging Face and are kept in the storage of the extension; speaking and recognizing work offline.
+Downloads (Piper voices and Whisper models from Hugging Face, the Silero model from the releases of silero-tts-onnx on GitHub) are kept in the storage of the extension; speaking and recognizing work offline.
 
 ## Requirements
 
 - Visual Studio Code `^1.107.0`
 - For the microphone (STT): SoX or FFmpeg (or `arecord` on Linux)
-- For Piper and Whisper: a package built for your platform (darwin, linux, win32 — arm64 / x64), the internet to download models and room for them (a Piper voice 20–110 MB, a Whisper model 99 MB – 1.7 GB)
+- For Piper, Silero and Whisper: a package built for your platform (darwin, linux, win32 — arm64 / x64), the internet to download models and room for them (a Piper voice 20–110 MB, the Silero model 174 MB, a Whisper model 99 MB – 1.7 GB)
 - Node.js (with `npm`) to build and package the extension from source
 
 ## Getting started (development)
@@ -135,9 +146,9 @@ src/
   components/               # extension host: JsonFormattedView (json-formatted: file system provider), SpeechPanel (the side bar),
                             # SpeechSettings (ttsSttAloud.* settings, server keys), TextToSpeech (the speech of all
                             # callers), SystemSpeech (voices of the OS), PiperSpeech (Piper through sherpa-onnx and
-                            # piper-phonemize), AudioPlayer, SpeechToText (the microphone of all callers), MicRecorder
+                            # piper-phonemize), SileroSpeech (Silero through the same), AudioPlayer, SpeechToText (the microphone of all callers), MicRecorder
                             # (records speech, SpeechDetector), WhisperRecognizer (Whisper through sherpa-onnx),
-                            # ModelStore with PiperModels and WhisperModels (models chosen on the disk or downloaded),
+                            # ModelStore with PiperModels, SileroModels and WhisperModels (models chosen on the disk or downloaded),
                             # TextPlayer (reads editors and the clipboard aloud), Dictation (speech written at the cursor),
                             # DeviceLock (the speaker and the microphone shared by the windows of VS Code),
                             # migrateOldName (the settings and models of the old name)
@@ -161,4 +172,4 @@ dist/                       # bundled output loaded by VS Code, with the runtime
 
 - **Source code of this repository** — MIT © 2026 NineBits LLC, see the `LICENSE` file.
 - **The package (VSIX)** — it holds [piper-phonemize](https://github.com/csukuangfj/piper-phonemize) and [espeak-ng](https://github.com/espeak-ng/espeak-ng), which are under GPL-3.0-or-later, so the package as a whole is distributed under the GNU General Public License, version 3 or later: see the `COPYING` file. All the components it holds, with their licenses: `THIRD-PARTY-NOTICES.md`.
-- **Voices and models** — the voices of Piper and the models of Whisper are not in the package: you download or choose them, each under its own license. The license of a Piper voice is shown in the side bar; it is that of the dataset it was trained on, as its card on Hugging Face states it.
+- **Voices and models** — the voices of Piper, the model of Silero and the models of Whisper are not in the package: you download or choose them, each under its own license. The license of a Piper voice is shown in the side bar; it is that of the dataset it was trained on, as its card on Hugging Face states it.

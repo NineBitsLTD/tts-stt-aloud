@@ -2,7 +2,7 @@
   "name": "tts-stt-aloud",
   "displayName": "TTS / STT Aloud",
   "description": "%description%",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "publisher": "ninebits",
   "license": "SEE LICENSE IN COPYING",
   "icon": "resources/icon.png",

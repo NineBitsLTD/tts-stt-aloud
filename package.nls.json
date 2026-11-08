@@ -24,7 +24,7 @@
   "config.tts.servers": "External TTS servers (their keys are kept in the secret storage of VS Code).",
   "config.tts.voice": "The voice chosen in the side bar (the voice test).",
   "config.tts.voices": "Checked voices by driver: picked automatically for reading aloud and offered to other extensions.",
-  "config.tts.models": "Files of the voice models by driver (Piper: .onnx files prepared for sherpa-onnx, with tokens.txt next to them), chosen on the disk or downloaded in the side bar.",
+  "config.tts.models": "Files of the voice models by driver (Piper, Silero: .onnx files prepared for sherpa-onnx, with tokens.txt next to them), chosen on the disk or downloaded in the side bar.",
   "config.stt.enabled": "Speech to text: lets other extensions record the microphone. The microphone test of the side bar works either way.",
   "config.stt.volume": "Gain of the microphone signal, in % (100 is the signal as recorded).",
   "config.stt.driver": "Driver of speech recognition, one of `#ttsSttAloud.stt.drivers#`; empty or not offered: the first of them.",

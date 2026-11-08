@@ -2,6 +2,11 @@
 
 All notable changes to the "tts-stt-aloud" extension are documented in this file.
 
+## [2.3.0]
+
+- Silero speaks: Russian, five voices of one model (`v5_6_ru`, 48 kHz), offline, through the same sherpa-onnx as Piper, without Python. **Add driver → Silero → Add voice model** downloads the model (174 MB) or takes its four files from the disk and joins them into one. Its license is shown when it is chosen: CC BY-NC-SA 4.0, non-commercial use only. The stress of the words comes from espeak-ng and may be wrong in some of them; questions are read as statements
+- The list of voices follows a model added or removed at once, also one that needs no preparing
+
 ## [2.2.0]
 
 - The buttons of reading are also in the title of the Markdown preview of VS Code (and the Player section reads it), also for a translation opened by the Translator extension: the whole file, the block being read marked in the preview and scrolled to; reading ends with the tab of the preview

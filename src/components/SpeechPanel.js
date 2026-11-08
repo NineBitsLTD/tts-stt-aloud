@@ -18,7 +18,7 @@ const t = vscode.l10n.t;
  * sound, the driver, the drivers offered (Piper, Silero, external servers), the voices checked and
  * the voice tested —, STT — on / off (whether other extensions may use the microphone), the gain
  * and the level of the microphone, its drivers, the test of the microphone (recorded, played); the
- * models of Piper and Whisper while they are offered (`PiperModels`, `WhisperModels`: chosen on the disk
+ * models of Piper, Silero and Whisper while they are offered (`PiperModels`, `SileroModels`, `WhisperModels`: chosen on the disk
  * or downloaded), the model and language Whisper recognizes with, the text recognized by the test. The
  * settings are those of VS Code (`SpeechSettings`), so a change made elsewhere shows here.
  * @implements {vscode.WebviewViewProvider}
@@ -47,6 +47,8 @@ export class SpeechPanel {
         this._view = null;
         /** the active TTS drivers whose voices the view shows */
         this._voicesOf = '';
+        /** the models of TTS those voices are of */
+        this._voiceModels = '';
     }
 
     /**
@@ -177,7 +179,8 @@ export class SpeechPanel {
     /** The settings changed: the view follows, the voices when the driver changed. */
     _onSettings() {
         this._postState();
-        if (this._settings.get().tts.active.join(',') !== this._voicesOf) this._postVoices(false);
+        const { active, models } = this._settings.get().tts;
+        if (active.join(',') !== this._voicesOf || JSON.stringify(models) !== this._voiceModels) this._postVoices(false);
     }
 
     /**
@@ -257,8 +260,10 @@ export class SpeechPanel {
      * @param {boolean} refresh ask the system for its voices again
      */
     async _postVoices(refresh) {
-        const drivers = this._settings.get().tts.active.join(',');
+        const { active, models } = this._settings.get().tts;
+        const drivers = active.join(',');
         this._voicesOf = drivers;
+        this._voiceModels = JSON.stringify(models);
         const voices = await this._tts.voices({ refresh });
         this._post({ type: 'voices', drivers, voices });
     }
