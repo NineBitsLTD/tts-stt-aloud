@@ -1,0 +1,5 @@
+{
+	"player.announce.file": "Reading file {name}:",
+	"player.announce.fragment": "Reading a fragment of file {name}, line {line}:",
+	"player.announce.clipboard": "Reading the clipboard"
+}

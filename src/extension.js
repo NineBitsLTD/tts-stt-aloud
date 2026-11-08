@@ -1,3 +1,4 @@
+import { Dictation } from './components/Dictation';
 import { JsonFormattedView } from './components/JsonFormattedView';
 import { MarkdownPreview } from './components/MarkdownPreview';
 import { PiperModels } from './components/PiperModels';
@@ -5,6 +6,7 @@ import { PiperSpeech } from './components/PiperSpeech';
 import { SpeechPanel } from './components/SpeechPanel';
 import { SpeechSettings } from './components/SpeechSettings';
 import { SpeechToText } from './components/SpeechToText';
+import { TextPlayer } from './components/TextPlayer';
 import { TextToSpeech } from './components/TextToSpeech';
 import { WhisperModels } from './components/WhisperModels';
 import { WhisperRecognizer } from './components/WhisperRecognizer';
@@ -27,8 +29,12 @@ export function activate(context) {
 	context.subscriptions.push(new MarkdownPreview(context, settings, tts).register());
 	// .json files: a formatted view next to the raw text, saved compact
 	context.subscriptions.push(new JsonFormattedView().register());
-	// The speaker of the activity bar: the side bar of the speech settings (with the models of Piper and Whisper)
-	context.subscriptions.push(new SpeechPanel(context, settings, tts, stt, { piper, whisper }).register());
+	// Any text editor: read aloud (its selection, else its text; or the clipboard) and dictated into
+	const player = new TextPlayer(settings, tts);
+	const dictation = new Dictation(settings, tts, stt, player);
+	context.subscriptions.push(player.register(), dictation.register());
+	// The speaker of the activity bar: the side bar of the speech settings (with the models of Piper and Whisper) and the player
+	context.subscriptions.push(new SpeechPanel(context, settings, tts, stt, { piper, whisper }, { player, dictation }).register());
 	return {
 		tts: {
 			/** @returns the voices offered: the checked ones, all of them when none is checked */

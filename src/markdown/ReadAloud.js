@@ -1,5 +1,5 @@
+import { clock, estimateReading, guessLanguage, phrasesOf } from '../utils/phrasesOf';
 import { pickVoice, speaksLanguage } from '../utils/pickVoice';
-import { guessLanguage } from './PreviewTranslation';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
 /** @typedef {import('../utils/pickVoice').Voice & { key: string, driverName?: string }} Voice key: `<driver>:<name>` from the host, the name for the voices of the webview */
@@ -20,26 +20,6 @@ const BLOCKS = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,dt,dd,td,th,figcaption,caption
 const MERGING = 'li,dd,blockquote,td,th';
 /** Parts of a merging block that are read on their own. */
 const SEPARATE = 'ul,ol,dl,table,h1,h2,h3,h4,h5,h6,pre,script,style';
-
-/**
- * @param {number} ms
- * @returns {string} `m:ss` or `h:mm:ss`
- */
-function clock(ms) {
-    const seconds = Math.floor(ms / 1000);
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor(seconds / 60) % 60;
-    const rest = String(seconds % 60).padStart(2, '0');
-    return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
-}
-
-/**
- * @param {string} text
- * @returns {string[]} its phrases (sentences); "v2.1" or "app.js" do not end one
- */
-function phrasesOf(text) {
-    return text.match(/(?:[^.!?…]|[.!?…](?=[\p{L}\p{N}]))+[.!?…]*/gu)?.map(phrase => phrase.trim()).filter(phrase => /[\p{L}\p{N}]/u.test(phrase)) ?? [];
-}
 
 /**
  * The voices of the webview (Web Speech API), when the drivers of the speech settings have none.
@@ -329,10 +309,7 @@ export class ReadAloud {
      * @returns {number} about how long reading takes, in ms (letters and digits a second, a pause per phrase)
      */
     _estimate() {
-        const text = this._blocks().map(block => block.text).join(' ');
-        const count = pattern => (text.match(pattern) ?? []).length;
-        const seconds = count(/[а-яёіїєґ]/gi) / 15 + count(/[a-z]/gi) / 13 + count(/\d/g) * 0.4 + (count(/[.!?…]+(?=\s|$)/g) + 1) * 0.2;
-        return (seconds * 1000) / (this._settings.rate || 1);
+        return estimateReading(this._blocks().map(block => block.text).join(' '), this._settings.rate);
     }
 
     _start() {

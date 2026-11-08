@@ -1,10 +1,11 @@
 import { HostRequests } from './markdown/HostRequests';
 import { ModelDialog } from './speech/ModelDialog';
+import { PlayerSection } from './speech/PlayerSection';
 import { ServerDialog } from './speech/ServerDialog';
 import { SpeechSection } from './speech/SpeechSection';
 
 /**
- * The webview of the speech side bar (`SpeechPanel` on the host): the TTS and STT sections. The host
+ * The webview of the speech side bar (`SpeechPanel` on the host): the Player, TTS and STT sections. The host
  * sends the state of the settings (`state`), the voices of the TTS driver (`voices`), the levels of
  * the sound (`level`), what the microphone does (`micState`), the bytes of a model being installed
  * (`modelProgress`) and what went wrong (`status`); the view sends the changes.
@@ -33,7 +34,8 @@ const sections = {
         modelDialog,
     }),
 };
-document.querySelector('.speech').append(sections.tts.element, sections.stt.element);
+const player = new PlayerSection(host);
+document.querySelector('.speech').append(player.element, sections.tts.element, sections.stt.element);
 
 window.addEventListener('message', (event) => {
     const message = event.data;
@@ -48,6 +50,9 @@ window.addEventListener('message', (event) => {
             break;
         case 'level':
             section?.showLevel(message);
+            break;
+        case 'player':
+            player.setState(message.state);
             break;
         case 'modelProgress':
             section?.showModelProgress(message);

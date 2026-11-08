@@ -2,6 +2,17 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.4.0]
+
+- A player in the title of any text editor and in a new **Player** section of the side bar
+  - Read Aloud reads the selection, else the whole text, phrase by phrase: a phrase back, pause, a phrase on, stop; the phrase read is highlighted in the editor and scrolled to; Markdown and HTML are read as plain text
+  - It says first what it reads, in the language of the text (else that of VS Code, else English); the texts are in `src/locales/`
+  - The time it takes: in the status bar and next to Play in the side bar, with how far it is while reading
+  - The source in the side bar: the file or the clipboard
+  - Dictate writes speech at the cursor until pressed again (or into the clipboard), recognized by Whisper
+  - The buttons of reading go with TTS, those of dictation with STT
+- The extension activates when VS Code has started (for the status bar)
+
 ## [1.3.3]
 
 - The models of Piper and Whisper in the side bar show their buttons only while hovered (or focused): a new folder button shows the file of the model in Finder / File Explorer, × removes it

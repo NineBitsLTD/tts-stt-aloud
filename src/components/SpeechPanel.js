@@ -6,10 +6,13 @@ import { exists } from './ModelStore';
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
 /** @typedef {import('./SpeechToText').SpeechToText} SpeechToText */
 /** @typedef {import('./ModelStore').ModelStore} ModelStore */
+/** @typedef {import('./TextPlayer').TextPlayer} TextPlayer */
+/** @typedef {import('./Dictation').Dictation} Dictation */
 
 /**
  * The side bar of the speech settings (the speaker of the activity bar, the webview view
- * `tts-stt-md-aloud.speech`; `src/speech.js`): TTS — on / off, volume, speed, the level of the
+ * `tts-stt-md-aloud.speech`; `src/speech.js`): Player — the source, the buttons and the time of the reading of
+ * `TextPlayer`, the button of `Dictation` —, TTS — on / off, volume, speed, the level of the
  * sound, the driver, the drivers offered (Piper, Silero, external servers), the voices checked and
  * the voice tested —, STT — on / off (whether other extensions may use the microphone), the gain
  * and the level of the microphone, its drivers, the test of the microphone (recorded, played); the
@@ -28,13 +31,16 @@ export class SpeechPanel {
      * @param {TextToSpeech} tts
      * @param {SpeechToText} stt
      * @param {Record<string, ModelStore>} models the models of the drivers that have them, by driver
+     * @param {{ player: TextPlayer, dictation: Dictation }} reading the reading and the dictation of texts
      */
-    constructor(context, settings, tts, stt, models) {
+    constructor(context, settings, tts, stt, models, { player, dictation }) {
         this._context = context;
         this._settings = settings;
         this._tts = tts;
         this._stt = stt;
         this._models = models;
+        this._player = player;
+        this._dictation = dictation;
         /** @type {vscode.WebviewView | null} */
         this._view = null;
         /** the active TTS drivers whose voices the view shows */
@@ -50,7 +56,9 @@ export class SpeechPanel {
             this._settings.onDidChange(() => this._onSettings()),
             this._tts.onLevels(({ levels, interval }) => this._post({ type: 'level', section: 'tts', levels, interval })),
             this._stt.onLevel(level => this._post({ type: 'level', section: 'stt', ...level })),
-            this._stt.onState(({ state, owner, limits }) => this._post({ type: 'micState', state, test: owner === 'test', limits })),
+            this._stt.onState(({ state, owner, limits }) => this._post({ type: 'micState', state, test: owner === 'test', dictation: owner === this._dictation, limits })),
+            this._player.onDidChange(() => this._postPlayer()),
+            this._dictation.onDidChange(() => this._postPlayer()),
             ...Object.values(this._models).map(store => store.onDidChange(() => {
                 this._postState();
                 if (store.section === 'tts') this._postVoices(false);
@@ -67,8 +75,12 @@ export class SpeechPanel {
         view.webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this._context.extensionUri, 'dist')] };
         view.webview.html = this._html(view.webview);
         const subscription = view.webview.onDidReceiveMessage(message => this._onMessage(message));
+        const visibility = view.onDidChangeVisibility(() => this._player.setPanelVisible(view.visible));
+        this._player.setPanelVisible(view.visible);
         view.onDidDispose(() => {
             subscription.dispose();
+            visibility.dispose();
+            this._player.setPanelVisible(false);
             this._tts.stop('test');
             this._stt.stopTest();
             this._view = null;
@@ -86,6 +98,10 @@ export class SpeechPanel {
             case 'ready':
                 await this._postState();
                 await this._postVoices(true);
+                this._postPlayer();
+                break;
+            case 'player':
+                this._playerAction(String(message.action), message.value);
                 break;
             case 'update':
                 await this._settings.update(section, String(message.key), message.value);
@@ -168,6 +184,28 @@ export class SpeechPanel {
         this._tts.stop();
         const { wav, duration, ended, text, lang, error } = await this._stt.test(this._settings.get().tts.volume / 100);
         return { heard: !!wav, duration, ended, text, lang, note: error ?? '' };
+    }
+
+    /**
+     * @param {string} action a button of the Player section, or `source` with its value
+     * @param {unknown} value
+     */
+    _playerAction(action, value) {
+        const actions = {
+            play: () => this._player.play(),
+            pause: () => this._player.togglePause(),
+            back: () => this._player.back(),
+            forward: () => this._player.forward(),
+            stop: () => this._player.stop(),
+            record: () => this._dictation.toggle(),
+            source: () => this._player.setSource(/** @type {any} */ (value)),
+        };
+        actions[action]?.();
+    }
+
+    _postPlayer() {
+        const { tts, stt } = this._settings.get();
+        this._post({ type: 'player', state: { ...this._player.state(), speech: tts.enabled, microphone: stt.enabled, dictating: this._dictation.active } });
     }
 
     /**

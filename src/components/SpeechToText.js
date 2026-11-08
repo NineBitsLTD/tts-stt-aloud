@@ -99,9 +99,19 @@ export class SpeechToText {
      * @returns {Promise<Recording & Heard>} the speech as a WAV file (null when none began) and its text
      */
     async record(limits = {}, owner = 'api') {
-        if (!this._settings.get().stt.enabled) throw new Error('Speech to text is off: turn STT on in the TTS / STT side bar to let extensions use the microphone.');
-        const recording = await this._record(limitsOf(limits), owner);
+        const recording = await this.listen(limits, owner);
         return { ...recording, ...(recording.wav ? await this.recognize(recording.wav) : { text: null, lang: '' }) };
+    }
+
+    /**
+     * Records speech without recognizing it (the dictation listens for the next phrase meanwhile).
+     * @param {ListenLimits} [limits]
+     * @param {unknown} [owner]
+     * @returns {Promise<Recording>}
+     */
+    async listen(limits = {}, owner = 'api') {
+        if (!this._settings.get().stt.enabled) throw new Error('Speech to text is off: turn STT on in the TTS / STT side bar to let extensions use the microphone.');
+        return this._record(limitsOf(limits), owner);
     }
 
     /**

@@ -295,7 +295,7 @@ export class SpeechSection {
      * What the microphone does (STT), for the test or another extension.
      * @param {{ state: 'waiting' | 'recording' | 'playing' | 'recognizing' | 'idle', test: boolean, limits?: { waitMs: number, maxMs: number, silenceMs: number } }} message
      */
-    setMicState({ state, test, limits }) {
+    setMicState({ state, test, dictation, limits }) {
         if (!this._progress) return;
         clearInterval(this._progressTimer);
         const since = performance.now();
@@ -303,9 +303,9 @@ export class SpeechSection {
             const elapsed = performance.now() - since;
             const left = Math.max(0, Math.ceil(((limits?.waitMs ?? 5000) - elapsed) / 1000));
             if (state === 'waiting') {
-                this._progress.textContent = test ? `Speak now — waiting for speech ${left} s` : `An extension waits for speech: ${left} s`;
+                this._progress.textContent = dictation ? 'Dictation: waiting for speech' : test ? `Speak now — waiting for speech ${left} s` : `An extension waits for speech: ${left} s`;
             } else if (state === 'recording') {
-                this._progress.textContent = test
+                this._progress.textContent = dictation ? `Dictation: recording ${seconds(elapsed)}` : test
                     ? `Recording ${seconds(elapsed)} — ends after ${seconds(limits?.silenceMs ?? 1000)} of silence, at ${seconds(limits?.maxMs ?? 10000)} at most`
                     : `An extension records: ${seconds(elapsed)}`;
             }

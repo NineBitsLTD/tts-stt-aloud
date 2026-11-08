@@ -1,23 +1,11 @@
+import { guessLanguage } from '../utils/phrasesOf';
+
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
 
 const LANG_LABELS = { '': 'DEF', ru: 'RU', uk: 'UA', en: 'EN' };
 /** Texts sent to the language model at once. */
 const BATCH_ITEMS = 60;
 const BATCH_CHARS = 8000;
-
-/**
- * @param {string} text
- * @returns {'ru' | 'uk' | 'en'} the language of a text by its letters, as the claude-ai voice
- *   picks it: English when Latin letters are more than twice the Cyrillic ones, else Russian
- *   (Ukrainian with its own letters)
- */
-export function guessLanguage(text) {
-    const sample = text.slice(0, 4000);
-    const cyrillic = (sample.match(/[а-яёіїєґ]/gi) ?? []).length;
-    const latin = (sample.match(/[a-z]/gi) ?? []).length;
-    if (latin > cyrillic * 2) return 'en';
-    return /[іїєґ]/i.test(sample) ? 'uk' : 'ru';
-}
 
 /**
  * @template T

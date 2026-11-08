@@ -2,7 +2,7 @@
   "name": "tts-stt-md-aloud",
   "displayName": "TTS / STT MD Aloud",
   "description": "Markdown preview that translates the text and reads it aloud; speech settings for all of VS Code in the side bar with system and Piper voices (sherpa-onnx); a formatted view of JSON files",
-  "version": "1.3.3",
+  "version": "1.4.0",
   "publisher": "ninebits",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -34,7 +34,8 @@
     "json"
   ],
   "activationEvents": [
-    "onFileSystem:json-formatted"
+    "onFileSystem:json-formatted",
+    "onStartupFinished"
   ],
   "extensionKind": [
     "ui",
@@ -127,6 +128,61 @@
         "command": "tts-stt-md-aloud.stopRecording",
         "title": "Stop Recording Speech",
         "category": "MD Aloud"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerPlay",
+        "title": "Read Aloud",
+        "category": "MD Aloud",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerPause",
+        "title": "Pause Reading",
+        "category": "MD Aloud",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerResume",
+        "title": "Resume Reading",
+        "category": "MD Aloud",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerBack",
+        "title": "Previous Phrase",
+        "category": "MD Aloud",
+        "icon": "$(debug-reverse-continue)",
+        "enablement": "ttsSttMdAloud.playerHasPrevious"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerForward",
+        "title": "Next Phrase",
+        "category": "MD Aloud",
+        "icon": "$(debug-continue)",
+        "enablement": "ttsSttMdAloud.playerHasNext"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerStop",
+        "title": "Stop Reading",
+        "category": "MD Aloud",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "tts-stt-md-aloud.playerToggle",
+        "title": "Read Aloud or Pause",
+        "category": "MD Aloud"
+      },
+      {
+        "command": "tts-stt-md-aloud.dictate",
+        "title": "Dictate into the Editor",
+        "category": "MD Aloud",
+        "icon": "$(record)"
+      },
+      {
+        "command": "tts-stt-md-aloud.stopDictation",
+        "title": "Stop Dictation",
+        "category": "MD Aloud",
+        "icon": "$(stop-circle)"
       }
     ],
     "menus": {
@@ -150,9 +206,85 @@
           "command": "tts-stt-md-aloud.openRawJson",
           "when": "resourceScheme == json-formatted",
           "group": "navigation"
+        },
+        {
+          "command": "tts-stt-md-aloud.dictate",
+          "when": "config.ttsSttMdAloud.stt.enabled && !ttsSttMdAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tts-stt-md-aloud.stopDictation",
+          "when": "config.ttsSttMdAloud.stt.enabled && ttsSttMdAloud.dictating && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerPlay",
+          "when": "config.ttsSttMdAloud.tts.enabled && !ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerBack",
+          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerPause",
+          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && !ttsSttMdAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerResume",
+          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && ttsSttMdAloud.playerPaused && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerForward",
+          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@5"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerStop",
+          "when": "config.ttsSttMdAloud.tts.enabled && ttsSttMdAloud.playerActive && activeEditor =~ /^workbench\\.editors\\.(files\\.textFileEditor|textResourceEditor)$/",
+          "group": "navigation@6"
         }
       ],
       "commandPalette": [
+        {
+          "command": "tts-stt-md-aloud.playerPlay",
+          "when": "config.ttsSttMdAloud.tts.enabled && !ttsSttMdAloud.playerActive"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerPause",
+          "when": "ttsSttMdAloud.playerActive && !ttsSttMdAloud.playerPaused"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerResume",
+          "when": "ttsSttMdAloud.playerActive && ttsSttMdAloud.playerPaused"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerBack",
+          "when": "ttsSttMdAloud.playerActive"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerForward",
+          "when": "ttsSttMdAloud.playerActive"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerStop",
+          "when": "ttsSttMdAloud.playerActive"
+        },
+        {
+          "command": "tts-stt-md-aloud.playerToggle",
+          "when": "false"
+        },
+        {
+          "command": "tts-stt-md-aloud.dictate",
+          "when": "config.ttsSttMdAloud.stt.enabled && !ttsSttMdAloud.dictating"
+        },
+        {
+          "command": "tts-stt-md-aloud.stopDictation",
+          "when": "ttsSttMdAloud.dictating"
+        },
         {
           "command": "tts-stt-md-aloud.openPreview",
           "when": "resourceExtname =~ /^\\.(md|markdown)$/i"
@@ -415,6 +547,7 @@
     "dompurify": "^3.4.17",
     "highlight.js": "^11.12.0",
     "marked": "^12.0.2",
+    "parse5": "^8.1.0",
     "piper-phonemize": "1.5.9",
     "sherpa-onnx-node": "2.0.1"
   },
