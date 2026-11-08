@@ -33,7 +33,7 @@ const MODEL_TEXTS = {
         empty: 'No models yet',
         problem: 'not a Whisper model of sherpa-onnx, or its decoder or tokens are missing',
         disk: 'Choose the encoder of a Whisper model of sherpa-onnx (<name>-encoder.onnx or <name>-encoder.int8.onnx): its decoder and <name>-tokens.txt must be next to it; it is used where it is.',
-        catalog: 'The Whisper models of sherpa-onnx (int8), downloaded into the storage of the extension. For Russian take small or a larger one: tiny and base are fast but rough; .en models know English only.',
+        catalog: 'The Whisper models of sherpa-onnx (int8), downloaded into the storage of the extension. All the models without .en are multilingual — 99 languages, Whisper detects the language —, but distil-large-v3, English only like the .en ones. For Russian take small or a larger one: tiny and base are fast but rough.',
     },
 };
 /** The languages listed first in the language of recognition. */

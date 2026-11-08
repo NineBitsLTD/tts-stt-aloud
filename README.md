@@ -1,29 +1,79 @@
 # TTS / STT MD Aloud
 
-A Visual Studio Code extension that previews Markdown files, translates the preview and reads it aloud with the voices of your system, keeps text to speech settings for all of VS Code in the side bar, and shows JSON files formatted.
+A Visual Studio Code extension that previews Markdown files, translates the preview and reads it aloud — with the voices of your system or offline Piper voices —, recognizes speech offline with Whisper, keeps the text to speech and speech to text settings for all of VS Code in the side bar (other extensions use them through its API), and shows JSON files formatted.
 
 ## Open source
 
 TTS / STT MD Aloud is an open source project under the [MIT license](LICENSE). Its source code is on GitHub: **[github.com/NineBitsLTD/tts-stt-md-aloud](https://github.com/NineBitsLTD/tts-stt-md-aloud)**.
 
-The requirements and how to install the extension or build it from source are described after the features: [Requirements](#requirements), [Getting started (development)](#getting-started-development), [Packaging and installing](#packaging-and-installing).
+How to use it, the requirements and how to install the extension or build it from source are described after the features: [How to use](#how-to-use), [Requirements](#requirements), [Getting started (development)](#getting-started-development), [Packaging and installing](#packaging-and-installing).
 
 ## Features
 
 - **Markdown preview** — Markdown files open as text as usual; **Open Preview (Translate, Read Aloud)** in the editor title (a sheet with a lens) shows the preview in the same tab, **Open as Raw Markdown** goes back. The preview follows your edits. It renders GitHub flavoured Markdown (tables, task lists, highlighted code, heading anchors, relative images), lists the other Markdown files of the folder, opens a linked Markdown file in its preview, other files in their editor and web addresses in the browser; ↑ goes back to the top.
 - **Translation** — **DEF / RU / UA / EN** in the header translates the shown text in place (code is not translated; DEF is the original). It uses a language model of VS Code (from an installed extension such as GitHub Copilot), else the on-device translator of the browser when it has one. Translations are cached while the preview is open.
-- **Reading aloud** — the speaker button reads the shown text (the translation when one is shown) phrase by phrase, highlighting the block being read; back / pause / on, the time read, and an estimate of the time it takes before you start. **Auto** reads each phrase in the best voice of its language (an English name in a Russian text in an English voice), the voices checked in the side bar first; pick a voice instead (remembered). It speaks with the driver, volume and speed of the speech settings — the voices of the operating system (`say` on macOS, `System.Speech` on Windows, `spd-say` on Linux) —, with the voices of VS Code's webview only when the driver has none.
+- **Reading aloud** — the speaker button reads the shown text (the translation when one is shown) phrase by phrase, highlighting the block being read; back / pause / on, the time read, and an estimate of the time it takes before you start. **Auto** reads each phrase in the best voice of its language (an English name in a Russian text in an English voice), the voices checked in the side bar first; pick a voice instead (remembered). It speaks with the drivers, volume and speed of the speech settings — the voices of the operating system (`say` on macOS, `System.Speech` on Windows, `spd-say` on Linux) and of Piper, in one list with their drivers —, with the voices of VS Code's webview only when the drivers have none. Hidden while TTS is off.
 - **Speech settings (side bar)** — the speaker in the activity bar opens the settings of text to speech and speech to text for all of VS Code: they are the VS Code settings `ttsSttMdAloud.tts.*` / `ttsSttMdAloud.stt.*`, so other extensions read them too.
   - **TTS** — on / off by the title; **Volume** of the speech, in % of the volume set on the computer (the system volume is not changed); **Speed** (0.5× – 2×, also the speed of the preview); a **level** meter of the sound being spoken; the **drivers** — check several in the drop-down to have their voices together (each phrase is spoken by the driver of its voice): System, and the drivers added with **Add driver**: Piper, Silero, and external servers added with **Add External** (name, address, key — the key is kept in VS Code's secret storage; × removes a server); under Piper, its **voice models** for [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), the engine Piper is to speak with — **Add voice model** chooses an `.onnx` file on the disk — a model of sherpa-onnx (vits-piper-…, with `tokens.txt` next to it) is used where it is; a Piper model with its `.onnx.json` next to it is copied into the extension's storage and prepared there, the file stays as it is — or downloads a voice from the [Piper voices](https://huggingface.co/rhasspy/piper-voices) into the extension's storage and prepares it for sherpa-onnx (the progress is in a notification, which can cancel it); × removes a model (a downloaded one with its files); the **voices** of the drivers with check boxes, each with its driver — the checked ones are picked automatically for reading aloud and offered to other extensions; otherwise Auto takes the best voice of the language: Enhanced / Premium system voices, then Piper, then the other system voices —, the voice chosen in the list is the one **Test voice** speaks with.
-  - **STT** — on / off: whether other extensions may use the microphone (the switch does not turn it on); **Mic** gain; a **level** meter of the microphone while it records; the **driver** — Whisper (offered from the start) or external servers (Add driver / Add External as in TTS); **Whisper** recognizes speech offline with a model added under it — **Add model** chooses a Whisper model of sherpa-onnx on the disk (its encoder, with the decoder and tokens next to it) or downloads one (tiny … large-v3, turbo; small or larger for Russian) —, the **Model** and the **Language** (Auto, as VS Code, or a language of the model) are chosen below; **Test microphone** — waits 5 s for you to speak, records until you pause for 1 s (10 s at most; Stop ends it), plays the recording back and shows the recognized text below. The recording of the last test is kept until the next one. The microphone is recorded with [SoX](https://sourceforge.net/projects/sox/) or [FFmpeg](https://ffmpeg.org/) — install one of them —, or `arecord` on Linux; macOS asks once whether VS Code may use the microphone.
+  - **STT** — on / off: whether other extensions may use the microphone (the switch does not turn it on); **Mic** gain; a **level** meter of the microphone while it records; the **driver** — Whisper (offered from the start) or external servers (Add driver / Add External as in TTS); **Whisper** recognizes speech offline with a model added under it — **Add model** chooses a Whisper model of sherpa-onnx on the disk (its encoder, with the decoder and tokens next to it) or downloads one (tiny … large-v3, turbo: all without `.en` are multilingual, 99 languages, but distil-large-v3; small or larger for Russian) —, the **Model** and the **Language** (Auto, as VS Code, or a language of the model) are chosen below; **Test microphone** — waits 5 s for you to speak, records until you pause for 1 s (10 s at most; Stop ends it), plays the recording back and shows the recognized text below. The recording of the last test is kept until the next one. The microphone is recorded with [SoX](https://sourceforge.net/projects/sox/) or [FFmpeg](https://ffmpeg.org/) — install one of them —, or `arecord` on Linux; macOS asks once whether VS Code may use the microphone.
   - **Piper** speaks, offline, once a voice model is added: its voices are the models. It runs on [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (a native module built for the machine the VSIX is packed on) with [piper-phonemize](https://github.com/csukuangfj/piper-phonemize) (espeak-ng in WASM) turning the text into phonemes; Russian text is prepared first as in claude-ai — numbers, units, versions, file names and English words (read through [CMUdict](https://github.com/cmusphinx/cmudict) with their stress) become Russian words.
   - Silero and external servers can be added and chosen already; speaking and recognizing through them come in a later version, dictation into the editor too.
   - For other extensions: `const api = await vscode.extensions.getExtension('ninebits.tts-stt-md-aloud').activate()` — `api.tts` has `voices()` (with the `key` and the driver of each voice), `speak(text, { voice, lang, rate })` (`voice`: a key or a name) and `stop()`; `api.stt` has `record({ waitMs, maxMs, silenceMs })` (the speech as a WAV file and its text recognized with Whisper; only while STT is on) and `stop()`. Or the commands `tts-stt-md-aloud.speak` (text, options), `tts-stt-md-aloud.stopSpeaking`, `tts-stt-md-aloud.voices`, `tts-stt-md-aloud.record` (limits), `tts-stt-md-aloud.stopRecording`.
 - **Formatted JSON** — **Open Formatted JSON** in the editor title of a `.json` / `.jsonc` file shows it indented (JSONC comments and trailing commas are left out); saving it writes the file compact, without line breaks (asked once per file and session). **Open as Raw JSON** goes back to the file as it is written, which saves it unchanged.
 
+## How to use
+
+The speaker in the activity bar (the left bar of VS Code) opens the **Speech** side bar with two sections, **TTS** (text to speech) and **STT** (speech to text). Everything below is done there unless said otherwise.
+
+### Read a Markdown file aloud
+
+1. Open a `.md` file and click **Open Preview (Translate, Read Aloud)** — the sheet with a lens in the editor title.
+2. Click the speaker button in the header of the preview; back / pause / on control the reading. The select next to it is **Auto** (the best voice of the language of each phrase) or one voice.
+3. Volume, speed and the voices are those of the TTS section; reading is hidden while TTS is off.
+
+### Voices of the system
+
+The **System** driver is there from the start. To have better voices, install them in the operating system, then hide and show the side bar again to refresh the list:
+
+- **macOS** — System Settings → Accessibility → Spoken Content → System voice → **Manage Voices…**; the *Enhanced* and *Premium* voices sound best, and Auto prefers them.
+- **Windows** — the voices that `System.Speech` lists (those of desktop applications).
+- **Linux** — the voices of speech-dispatcher (`spd-say`); there is no level meter there.
+
+### Piper voices (offline)
+
+1. In TTS click **Add driver** and check **Piper**.
+2. Under Piper click **Add voice model**, then either
+   - **Download** — filter the list (`ru_RU`, `Russian`, `en_US` …), choose a voice and click **OK**; the progress is in a notification, which can cancel it, or
+   - **File on the disk** — **Browse…** to a Piper model (`.onnx` with its `.onnx.json` next to it: it is copied into the storage of the extension and prepared for sherpa-onnx) or to a sherpa-onnx `vits-piper-…` model (with `tokens.txt` next to it: used where it is), then **OK**.
+3. Open **Drivers** and check **Piper** too (keep **System** checked to have both): the voices of the checked drivers are in one list, each with its driver (`· Piper`, `· System`).
+4. In the list of voices click a name to choose the voice of **Test voice**, and check the voices that Auto should pick first (they are offered to other extensions too). × next to a model removes it (a downloaded one with its files).
+
+### Speech recognition (offline, Whisper)
+
+1. Install a recorder of the microphone: [SoX](https://sourceforge.net/projects/sox/) (`brew install sox` on macOS, `sudo apt install sox` on Debian / Ubuntu) or [FFmpeg](https://ffmpeg.org/); on Linux `arecord` (alsa-utils) works too.
+2. In STT, under **Whisper** (checked from the start; else check it under **Add driver**), click **Add model**, then
+   - **Download** — choose a model and click **OK**. All the models without `.en` are multilingual — 99 languages, Whisper detects the language —, but `distil-large-v3`, which knows English only like the `.en` ones. `tiny` (99 MB) for a quick try, `small` (358 MB) or larger for Russian: the small ones are fast but rough, or
+   - **File on the disk** — **Browse…** to the encoder of a Whisper model of sherpa-onnx (`<name>-encoder[.int8].onnx`, with `<name>-decoder[.int8].onnx` and `<name>-tokens.txt` next to it).
+3. Choose the **Model** and the **Language** that appear below: **Auto** (Whisper detects it), **As VS Code** (the language of the interface) or a language of the model.
+4. Click **Test microphone** and speak within 5 s: it records until you pause for 1 s (10 s at most; **Stop** ends it), plays the recording back and shows the recognized text below. macOS asks once whether VS Code may use the microphone; allow it (later: System Settings → Privacy & Security → Microphone).
+5. Turn **STT** on to let other extensions record the microphone (the switch does not turn it on by itself). Dictation into the editor comes in a later version.
+
+### When something does not work
+
+The section says what is missing under its controls:
+
+- *No recorder for the microphone: install SoX (sox) or FFmpeg (ffmpeg).* — install one of them (step 1 above); VS Code started from the Dock on macOS also finds them in `/opt/homebrew/bin` and `/usr/local/bin`.
+- *Piper cannot speak in this build for …* — the package was packed on another platform: it holds the native module of sherpa-onnx for that one; pack it on this machine (`npm run pack`). Whisper needs the same module.
+- *Whisper has no model ready* / *Piper … not prepared for sherpa-onnx* — add a model as described above; a model shown with a warning is missing its files.
+- A voice installed in the system is not in the list — hide and show the side bar again (or **Developer: Reload Window**).
+
+Downloads (Piper voices, Whisper models) come from Hugging Face and are kept in the storage of the extension; speaking and recognizing work offline. Translation of the preview uses a language model of VS Code (from an installed extension such as GitHub Copilot) or the on-device translator of the browser.
+
 ## Requirements
 
 - Visual Studio Code `^1.107.0`
+- For the microphone (STT): SoX or FFmpeg (or `arecord` on Linux)
+- For Piper and Whisper: a package built for your platform (darwin, linux, win32 — arm64 / x64), the internet to download models and room for them (a Piper voice 20–110 MB, a Whisper model 99 MB – 1.7 GB)
 - Node.js (with `npm`) to build and package the extension from source
 
 ## Getting started (development)
@@ -81,7 +131,7 @@ src/
                             # (records speech, SpeechDetector), WhisperRecognizer (Whisper through sherpa-onnx),
                             # ModelStore with PiperModels and WhisperModels (models chosen on the disk or downloaded)
   markdown/                 # preview webview: MarkdownView (marked + DOMPurify + highlight.js), PreviewTranslation, ReadAloud, HostRequests
-  speech/                   # side bar webview: SpeechSection, VoicePicker, ServerDialog, ModelDialog, createElement
+  speech/                   # side bar webview: SpeechSection, VoicePicker, DriverPicker, ServerDialog, ModelDialog, createElement
   utils/                    # createNonce, formatJson (+ minifyJson, stripJsonc), WavAudio, pickVoice,
                             # normalizeRussian and EnglishReading (text for Russian voices, ported from claude-ai),
                             # readOnnxMetadata, loadRuntime

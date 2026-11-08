@@ -2,6 +2,11 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.3.1]
+
+- Whisper: distil-large-v3 is English only (Distil-Whisper is distilled on English speech), no longer listed as multilingual; a Distil-Whisper model offers English only in Language whatever its metadata says. The note under the catalog says that all the models without .en are multilingual (99 languages)
+- README: How to use — reading aloud, system voices, Piper voices, speech recognition with Whisper step by step, what the messages of the side bar mean; the requirements of the microphone and the models
+
 ## [1.3.0]
 
 - Speech recognition: the Whisper driver recognizes speech offline through sherpa-onnx (the native module of Piper)

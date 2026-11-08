@@ -14,10 +14,19 @@ import { download, exists, ModelStore } from './ModelStore';
 
 /** The Whisper models of sherpa-onnx, by its author: `csukuangfj/sherpa-onnx-whisper-<key>`. */
 const REPOSITORY = 'https://huggingface.co/csukuangfj/';
-/** The models of the catalog, smallest first; `.en`: English only. */
+/** The models of the catalog, smallest first; the others multilingual (99 languages), but those `englishOnly`. */
 const MODELS = ['tiny', 'base', 'small', 'medium', 'turbo', 'distil-large-v3', 'large-v3', 'tiny.en', 'base.en', 'small.en', 'distil-small.en', 'medium.en'];
 /** The bytes at the end of an encoder read for its metadata (its lists of tokens and languages are long). */
 const META_TAIL = 64 * 1024;
+
+/**
+ * @param {string} name of a Whisper model (`small`, `tiny.en`, `distil-large-v3`)
+ * @returns {boolean} whether it knows English only: an `.en` model, or one of Distil-Whisper (`distil-…`:
+ *   distilled on English speech only, while its metadata may call it multilingual — its tokens are)
+ */
+export function englishOnly(name) {
+    return /\.en$/i.test(name) || /^distil-/i.test(name);
+}
 
 /**
  * @param {string} path of the encoder or the decoder of a Whisper model of sherpa-onnx
@@ -83,7 +92,7 @@ export class WhisperModels extends ModelStore {
         const files = whisperFiles(path);
         const meta = model.exists ? await readWhisperMeta(path) : null;
         const decoder = files ? await stat(files.decoder).catch(() => null) : null;
-        const multilingual = meta?.is_multilingual === '1';
+        const multilingual = meta?.is_multilingual === '1' && !englishOnly(files?.name ?? '');
         return {
             ...model,
             lang: meta ? (multilingual ? 'multilingual' : 'en') : '',
@@ -162,7 +171,7 @@ export class WhisperModels extends ModelStore {
             const listed = new Map((await response.json()).map(item => [item.path, Number(item.size) || 0]));
             const files = [`${key}-encoder.int8.onnx`, `${key}-decoder.int8.onnx`, `${key}-tokens.txt`].map(path => ({ path, size: listed.get(path) }));
             if (files.some(file => file.size === undefined)) return null;
-            const english = key.endsWith('.en');
+            const english = englishOnly(key);
             return {
                 key,
                 lang: english ? 'en' : 'multilingual',
