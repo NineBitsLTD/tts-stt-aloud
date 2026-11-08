@@ -6,6 +6,7 @@ import { createElement, createIcon } from './createElement';
  * @typedef {object} ModelSource what the dialog asks the host for
  * @property {() => Promise<string>} browse the open dialog of VS Code: the file chosen ('' : none)
  * @property {() => Promise<CatalogVoice[]>} catalog the voices that can be downloaded
+ * @property {(key: string) => Promise<import('../utils/voiceLicense').VoiceLicense | null>} [license] of a voice of the catalog
  * @property {(choice: ModelChoice) => Promise<string>} add why the model is not added ('' : added, or its download began)
  */
 
@@ -16,6 +17,11 @@ import { createElement, createIcon } from './createElement';
 export function megabytes(bytes) {
     return bytes ? `${Math.max(1, Math.round(bytes / 2 ** 20))} MB` : '';
 }
+
+/** What the dialog adds to a license, by its kind. */
+const LICENSE_NOTES = { attribution: 'credit its authors', sharealike: 'credit its authors, share alike', noncommercial: 'non-commercial use only', copyleft: 'copyleft', custom: 'read its terms before use' };
+/** The kinds of license the dialog warns of. */
+const WARNED_LICENSES = new Set(['noncommercial', 'copyleft', 'custom', 'unknown']);
 
 /**
  * The modal dialog adding a voice model: a file on the disk (Browse… opens the open dialog of VS
@@ -36,7 +42,8 @@ export class ModelDialog {
             this._diskNote = createElement('p', { className: 'speech-dialog__note speech-dialog__note--wide' }));
         this._filter = createElement('input', { className: 'speech-dialog__input', type: 'search', placeholder: 'Filter by name or language', spellcheck: false });
         this._list = createElement('ul', { className: 'speech-dialog__catalog-list', role: 'listbox' });
-        this._catalogPanel = createElement('div', { className: 'speech-dialog__catalog', hidden: true }, this._filter, this._list,
+        this._license = createElement('p', { className: 'speech-dialog__license' });
+        this._catalogPanel = createElement('div', { className: 'speech-dialog__catalog', hidden: true }, this._filter, this._list, this._license,
             this._catalogNote = createElement('p', { className: 'speech-dialog__note' }));
         this._error = createElement('p', { className: 'speech-dialog__error', role: 'alert' });
         this._ok = createElement('button', { className: 'speech-button speech-button--primary', type: 'submit', textContent: 'OK' });
@@ -81,6 +88,7 @@ export class ModelDialog {
         this._source = source;
         this._voices = null;
         this._chosenKey = '';
+        this._license.textContent = '';
         this._path.value = '';
         this._filter.value = '';
         this._diskMode.checked = true;
@@ -138,6 +146,7 @@ export class ModelDialog {
                     this._error.textContent = '';
                     this._renderList();
                     this._sync();
+                    this._showLicense(voice.key);
                 };
                 item.addEventListener('click', choose);
                 item.addEventListener('keydown', (event) => {
@@ -149,6 +158,29 @@ export class ModelDialog {
             }
             return item;
         }));
+    }
+
+    /**
+     * Says under which license the voice chosen is, warning when it restricts its use or is not stated.
+     * @param {string} key
+     */
+    async _showLicense(key) {
+        this._license.classList.remove('speech-dialog__license--warning');
+        this._license.textContent = this._source.license ? 'Checking its license…' : '';
+        const license = await this._source.license?.(key)?.catch(() => null);
+        if (key !== this._chosenKey) return;
+        this._license.textContent = license ? ModelDialog._licenseLine(license) : '';
+        this._license.title = license ? [license.text, license.url].filter(Boolean).join(' ') : '';
+        this._license.classList.toggle('speech-dialog__license--warning', WARNED_LICENSES.has(license?.kind));
+    }
+
+    /**
+     * @param {import('../utils/voiceLicense').VoiceLicense} license
+     * @returns {string} what the dialog says of it
+     */
+    static _licenseLine({ label, kind }) {
+        if (kind === 'unknown') return 'The license of its dataset is not stated: check it before commercial use.';
+        return `License of its dataset: ${label}${LICENSE_NOTES[kind] ? ` — ${LICENSE_NOTES[kind]}` : ''}.`;
     }
 
     /** OK: when a file or a voice is chosen. */

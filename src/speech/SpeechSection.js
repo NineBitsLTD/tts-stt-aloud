@@ -6,7 +6,7 @@ import { VoicePicker } from './VoicePicker';
 /** @typedef {import('../markdown/HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
 /** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
-/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes */
+/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean, license?: import('../utils/voiceLicense').VoiceLicense | null }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes; license: of a voice of Piper */
 /** @typedef {{ name: string, action: string, done: number, total: number }} PendingModel a model being installed (downloading, preparing): the bytes written of the total (0: unknown) */
 /** @typedef {{ models: VoiceModel[], pending: PendingModel[] }} DriverModels the voice models of a driver, those being installed */
 /** @typedef {import('./VoicePicker').PickerVoice} PickerVoice */
@@ -474,7 +474,7 @@ export class SpeechSection {
             return createElement('li', { className: `speech-models__item${model.exists ? '' : ' speech-models__item--missing'}`, title: model.path },
                 createElement('span', { className: 'speech-models__name', textContent: model.name }),
                 createElement('span', { className: `speech-models__meta${problem ? ' speech-models__meta--problem' : ''}` },
-                    ...(problem ? [createIcon('warning'), problem] : [meta])),
+                    ...(problem ? [createIcon('warning'), problem] : [meta, ...SpeechSection._licenseLabel(model)])),
                 this._modelActions(driver, model));
         });
         const pending = installing.map((model) => {
@@ -488,6 +488,7 @@ export class SpeechSection {
         add.addEventListener('click', () => this._modelDialog.open(texts.dialog, {
             browse: () => this._host.request('browseModel', { driver: driver.id }),
             catalog: () => this._host.request('modelCatalog', { driver: driver.id }),
+            license: key => this._host.request('modelLicense', { driver: driver.id, key }),
             add: choice => this._host.request('addModel', { driver: driver.id, ...choice }),
         }, { disk: texts.disk, catalog: texts.catalog, item: texts.item }));
         return createElement('div', { className: 'speech-models' },
@@ -495,6 +496,20 @@ export class SpeechSection {
             createElement('ul', { className: 'speech-models__list' }, ...items, ...pending,
                 ...(items.length || pending.length ? [] : [createElement('li', { className: 'speech-models__empty', textContent: texts.empty })])),
             add);
+    }
+
+    /**
+     * @param {VoiceModel} model
+     * @returns {HTMLElement[]} its license for its line, when it is known what it is
+     */
+    static _licenseLabel({ license }) {
+        if (!license) return [];
+        const restricted = ['noncommercial', 'copyleft', 'custom', 'unknown'].includes(license.kind);
+        return [createElement('span', {
+            className: `speech-models__license${restricted ? ' speech-models__license--restricted' : ''}`,
+            textContent: ` · ${license.label}`,
+            title: [license.text || 'The license of its dataset is not stated', license.url].filter(Boolean).join(' '),
+        })];
     }
 
     /**

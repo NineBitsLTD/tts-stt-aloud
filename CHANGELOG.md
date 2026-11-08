@@ -2,6 +2,12 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.6.0]
+
+- The package (VSIX) is distributed under the GNU GPL, version 3 or later, because it holds piper-phonemize and espeak-ng (`COPYING`); the source code of the repository stays under the MIT license. `THIRD-PARTY-NOTICES.md` lists the components of the package with their licenses (`npm run notices`)
+- Reading a file or the clipboard (the player, the preview) has the lowest priority for the speaker: the speech of other extensions interrupts it, and it goes on afterwards
+- The license of a Piper voice is shown: in the dialog when a voice of the catalog is chosen, with a warning when it is non-commercial, copyleft, has its own terms or is not stated, and in the list of voices (its `MODEL_CARD` is kept next to the model)
+
 ## [1.5.0]
 
 - The time of the player is shown only in the Player section: no status bar item, and the extension no longer activates at the startup of VS Code

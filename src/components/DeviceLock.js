@@ -26,19 +26,18 @@ const KEEP_MS = 5000;
 /** Added to the time a sound is expected to take. */
 const PLAYING_MARGIN = 1000;
 
-/** The levels of `priority`: a higher one takes the device over at the end of the sound being played. */
+/** The levels of `priority`: a higher one takes the device over. Reading a file or the clipboard is the lowest. */
 export const DEVICE_PRIORITY = { low: 0, normal: 1, high: 2 };
 
 /**
- * @param {unknown} owner who asks: `test` (the buttons of the side bar) high, other extensions low, others normal
- * @param {unknown} [priority] given by the one who asks (0–2)
+ * @param {unknown} owner who asks: `test` (the button of the side bar) high, anyone else normal
+ * @param {unknown} [priority] given by the one who asks (0–2): the readings of a text give the lowest
  * @returns {number}
  */
 export function priorityOf(owner, priority) {
     const given = Number(priority);
     if (priority !== undefined && priority !== null && Number.isFinite(given)) return Math.max(DEVICE_PRIORITY.low, Math.min(DEVICE_PRIORITY.high, Math.round(given)));
-    if (owner === 'test') return DEVICE_PRIORITY.high;
-    return owner === 'api' || owner === 'command' || owner === null ? DEVICE_PRIORITY.low : DEVICE_PRIORITY.normal;
+    return owner === 'test' ? DEVICE_PRIORITY.high : DEVICE_PRIORITY.normal;
 }
 
 /**

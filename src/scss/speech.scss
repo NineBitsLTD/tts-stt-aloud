@@ -550,6 +550,14 @@ body {
 		}
 	}
 
+	&__license {
+		white-space: pre;
+
+		&--restricted {
+			color: var(--vscode-editorWarning-foreground, #cca700);
+		}
+	}
+
 	&__meta {
 		display: inline-flex;
 		grid-column: 1;
@@ -906,6 +914,19 @@ body {
 
 	&__path {
 		text-overflow: ellipsis;
+	}
+
+	&__license {
+		margin: 0;
+		font-size: 12px;
+
+		&:empty {
+			display: none;
+		}
+
+		&--warning {
+			color: var(--vscode-editorWarning-foreground, #cca700);
+		}
 	}
 
 	&__note {

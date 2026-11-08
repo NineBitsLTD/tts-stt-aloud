@@ -1,14 +1,18 @@
 import { appendFile, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { encodeOnnxMetadata, readOnnxMetadata } from '../utils/readOnnxMetadata';
+import { voiceLicense } from '../utils/voiceLicense';
 import { copy, download, exists, ModelStore } from './ModelStore';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
-/** @typedef {import('./ModelStore').StoredModel} PiperModel a voice model; lang: of its config (`ru_RU`), else the voice of espeak (`ru`); ready: prepared for sherpa-onnx — its metadata and `tokens.txt` */
+/** @typedef {import('../utils/voiceLicense').VoiceLicense} VoiceLicense */
+/** @typedef {import('./ModelStore').StoredModel & { license: VoiceLicense | null }} PiperModel a voice model; lang: of its config (`ru_RU`), else the voice of espeak (`ru`); ready: prepared for sherpa-onnx — its metadata and `tokens.txt`; license: of its `MODEL_CARD`, kept next to it (null: it has none) */
 
 /** The voices of Piper, published by its authors. */
 const REPOSITORY = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/';
 const CATALOG = `${REPOSITORY}voices.json`;
+/** The file of a voice that says what it was trained on and under which license. */
+const CARD_FILE = 'MODEL_CARD';
 
 /**
  * @typedef {object} PiperVoice a voice of the catalog
@@ -91,6 +95,10 @@ export class PiperModels extends ModelStore {
         super(context, settings, { section: 'tts', driver: 'piper', label: 'Piper voice' });
         /** @type {Promise<Record<string, any>> | null} the catalog, loaded once a session */
         this._catalog = null;
+        /** @type {Map<string, Promise<VoiceLicense | null>>} the licenses of the voices of the catalog, by key */
+        this._licenses = new Map();
+        /** @type {Set<string>} voices downloaded before their cards were kept, whose cards were asked for */
+        this._cardsAsked = new Set();
     }
 
     /**
@@ -104,7 +112,69 @@ export class PiperModels extends ModelStore {
             ...model,
             lang: (await readConfig(path))?.lang || meta?.voice || '',
             ready: !!meta && await exists(join(dirname(path), 'tokens.txt')),
+            license: await this._licenseOf(path, model.downloaded),
         };
+    }
+
+    /**
+     * @param {string} key of a voice of the catalog
+     * @returns {Promise<VoiceLicense | null>} its license, from its card on Hugging Face (null: it cannot be told)
+     */
+    license(key) {
+        if (!this._licenses.has(key)) this._licenses.set(key, this._fetchLicense(key).catch(() => null));
+        return this._licenses.get(key);
+    }
+
+    /**
+     * @param {string} key
+     * @returns {Promise<VoiceLicense | null>}
+     */
+    async _fetchLicense(key) {
+        const card = await this._cardUrl(key);
+        if (!card) return null;
+        const response = await fetch(card);
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        return voiceLicense(await response.text());
+    }
+
+    /**
+     * @param {string} key of a voice of the catalog
+     * @returns {Promise<string>} the address of its card ('' : it has none)
+     */
+    async _cardUrl(key) {
+        await this.catalog();
+        const path = Object.keys((await this._catalog)[key]?.files ?? {}).find(file => file.endsWith(CARD_FILE));
+        return path ? REPOSITORY + path.split('/').map(encodeURIComponent).join('/') : '';
+    }
+
+    /**
+     * @param {string} path of a model
+     * @param {boolean} downloaded it is in the storage: one downloaded before its card was kept gets it now
+     * @returns {Promise<VoiceLicense | null>} what the card next to it says (null: no card)
+     */
+    async _licenseOf(path, downloaded) {
+        const card = await readFile(join(dirname(path), CARD_FILE), 'utf8').catch(() => null);
+        if (card !== null) return voiceLicense(card);
+        if (downloaded) this._askForCard(path);
+        return null;
+    }
+
+    /**
+     * Gets the card of a voice downloaded by an earlier version (in the background, once a session).
+     * @param {string} path of the model
+     */
+    async _askForCard(path) {
+        const name = this.nameOf(path);
+        if (this._cardsAsked.has(name)) return;
+        this._cardsAsked.add(name);
+        try {
+            const url = await this._cardUrl(name);
+            if (!url) return;
+            await download(url, join(dirname(path), CARD_FILE), { signal: new AbortController().signal, onBytes: () => {} });
+            this._changed.fire();
+        } catch {
+            // The list goes without its license
+        }
     }
 
     /**
@@ -161,6 +231,7 @@ export class PiperModels extends ModelStore {
         this.install(name, 'preparing', config.size + info.size, (folder, options) => this._prepare(folder, name, {
             config: target => copy(`${path}.json`, target, { ...options, size: config.size }),
             model: (target, transform) => copy(path, target, { ...options, size: info.size, transform }),
+            card: target => copy(join(dirname(path), CARD_FILE), target, { signal: options.signal, onBytes: () => {} }),
         }));
         return '';
     }
@@ -180,12 +251,14 @@ export class PiperModels extends ModelStore {
         const remote = suffix => Object.entries(voice.files ?? {}).find(([path]) => path.endsWith(suffix));
         const [configPath, config] = remote('.onnx.json') ?? [];
         const [modelPath, model] = remote('.onnx') ?? [];
+        const [cardPath] = remote(CARD_FILE) ?? [];
         if (!configPath || !modelPath) return `The catalog gives no model for ${key}.`;
         const url = path => REPOSITORY + path.split('/').map(encodeURIComponent).join('/');
         const size = file => Number(file?.size_bytes) || 0;
         this.install(key, 'downloading', size(config) + size(model), (folder, options) => this._prepare(folder, key, {
             config: target => download(url(configPath), target, { ...options, size: size(config) }),
             model: (target, transform) => download(url(modelPath), target, { ...options, size: size(model), transform }),
+            card: target => (cardPath ? download(url(cardPath), target, { signal: options.signal, onBytes: () => {} }) : Promise.resolve()),
         }));
         return '';
     }
@@ -195,13 +268,15 @@ export class PiperModels extends ModelStore {
      * the metadata appended to the model when it has none.
      * @param {string} folder
      * @param {string} name
-     * @param {{ config: (target: string) => Promise<void>, model: (target: string, transform: (part: string) => Promise<void>) => Promise<void> }} write
+     * @param {{ config: (target: string) => Promise<void>, model: (target: string, transform: (part: string) => Promise<void>) => Promise<void>, card: (target: string) => Promise<void> }} write
      * @returns {Promise<string>} the path of the model
      */
     async _prepare(folder, name, write) {
         const configPath = join(folder, `${name}.onnx.json`);
         const modelPath = join(folder, `${name}.onnx`);
         await write.config(configPath);
+        // A voice without its card is still a voice
+        await write.card(join(folder, CARD_FILE)).catch(() => {});
         const config = JSON.parse(await readFile(configPath, 'utf8'));
         await writeFile(join(folder, 'tokens.txt'), tokensOf(config));
         await write.model(modelPath, async (part) => {

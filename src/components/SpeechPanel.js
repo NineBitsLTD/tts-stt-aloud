@@ -142,6 +142,9 @@ export class SpeechPanel {
                     reply(undefined, String(error?.message || error));
                 }
                 break;
+            case 'modelLicense':
+                reply(await store?.license?.(String(message.key ?? '')) ?? null);
+                break;
             case 'addModel':
                 try {
                     reply(message.key ? await store.download(String(message.key)) : await store.addFile(String(message.path ?? '')));

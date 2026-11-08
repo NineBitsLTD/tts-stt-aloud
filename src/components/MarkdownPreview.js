@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { localeText, spokenLocale } from '../utils/localeText';
 import { createNonce } from '../utils/createNonce';
+import { DEVICE_PRIORITY } from './DeviceLock';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
@@ -300,11 +301,12 @@ export class MarkdownPreview {
 
     /**
      * @param {any} options of a phrase, from the webview
-     * @returns {object} with what is said on going on after another window interrupted the reading
+     * @returns {object} with the lowest priority — reading gives way to any other speech — and what is
+     *   said on going on after it was interrupted
      */
     static _speakOptions(options) {
         const resumeLang = spokenLocale(options?.lang, vscode.env.language);
-        return { resumeText: localeText(resumeLang, 'player.resume.file'), resumeLang, ...options };
+        return { priority: DEVICE_PRIORITY.low, resumeText: localeText(resumeLang, 'player.resume.file'), resumeLang, ...options };
     }
 
     /**

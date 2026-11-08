@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { guessLanguage } from '../utils/guessLanguage';
 import { localeText, spokenLocale } from '../utils/localeText';
 import { clock, estimateReading } from '../utils/phrasesOf';
+import { DEVICE_PRIORITY } from './DeviceLock';
 import { formatOfLanguage, guessMarkup, readablePhrases } from '../utils/readablePhrases';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
@@ -272,9 +273,9 @@ export class TextPlayer {
         if (!reading) return;
         const run = ++this._run;
         const { phrases } = reading.target;
-        // What is said on going on after another window interrupted it: in the language of the announcement
-        const resume = { resumeText: localeText(phrases[0].lang, `player.resume.${reading.target.kind}`), resumeLang: phrases[0].lang };
-        const optionsOf = phrase => ({ ...TextPlayer._options(phrase, reading.language), ...resume });
+        // Reading gives way to any other speech; what it says on going on is in the language of the announcement
+        const shared = { priority: DEVICE_PRIORITY.low, resumeText: localeText(phrases[0].lang, `player.resume.${reading.target.kind}`), resumeLang: phrases[0].lang };
+        const optionsOf = phrase => ({ ...TextPlayer._options(phrase, reading.language), ...shared });
         reading.paused = false;
         for (let index = from; index < phrases.length; index++) {
             reading.index = index;
