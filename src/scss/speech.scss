@@ -457,10 +457,14 @@ body {
 		column-gap: 4px;
 		padding: 2px 0;
 
-		.speech-drivers__remove {
-			grid-row: span 2;
-			grid-column: 2;
-			grid-row-start: 1;
+		&:hover,
+		&:focus-within {
+			.speech-models__actions {
+				width: auto;
+				overflow: visible;
+				opacity: 1;
+				pointer-events: auto;
+			}
 		}
 
 		&--missing .speech-models__name {
@@ -477,6 +481,37 @@ body {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	&__actions {
+		display: inline-flex;
+		grid-row: 1 / span 2;
+		grid-column: 2;
+		align-items: center;
+		gap: 2px;
+		width: 0;
+		overflow: hidden;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.1s;
+	}
+
+	&__reveal {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: 0;
+		border-radius: 4px;
+		cursor: pointer;
+		color: var(--vscode-foreground);
+		background: transparent;
+
+		&:hover {
+			background-color: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+		}
 	}
 
 	&__meta {

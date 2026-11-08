@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { createNonce } from '../utils/createNonce';
+import { exists } from './ModelStore';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
@@ -135,6 +136,9 @@ export class SpeechPanel {
             case 'removeModel':
                 await store?.remove(String(message.path ?? ''));
                 break;
+            case 'revealModel':
+                await this._revealModel(store, String(message.path ?? ''));
+                break;
         }
     }
 
@@ -166,6 +170,25 @@ export class SpeechPanel {
         return { heard: !!wav, duration, ended, text, lang, note: error ?? '' };
     }
 
+    /**
+     * Shows the file of a model of the list in the file manager (Finder, File Explorer), selected.
+     * @param {ModelStore | undefined} store
+     * @param {string} path
+     */
+    async _revealModel(store, path) {
+        if (!store?.paths().includes(path)) return;
+        if (!(await exists(path))) {
+            vscode.window.showWarningMessage(`The model is not there any more: ${path}`);
+            return;
+        }
+        await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(path));
+    }
+
+    /** @returns {string} what showing a file in the file manager is called on this system, as VS Code calls it */
+    static _revealLabel() {
+        return { darwin: 'Reveal in Finder', win32: 'Reveal in File Explorer' }[process.platform] ?? 'Open Containing Folder';
+    }
+
     async _postState() {
         const settings = this._settings.get();
         const models = { tts: {}, stt: {} };
@@ -179,6 +202,7 @@ export class SpeechPanel {
             drivers: { tts: this._settings.drivers('tts'), stt: this._settings.drivers('stt') },
             models,
             uiLanguage: vscode.env.language,
+            revealLabel: SpeechPanel._revealLabel(),
             notes: {
                 tts: (await this._tts.status()).message,
                 stt: [settings.stt.enabled ? 'Other extensions may use the microphone.' : 'Other extensions may not use the microphone (the test works anyway).', recognition.message].filter(Boolean).join(' '),

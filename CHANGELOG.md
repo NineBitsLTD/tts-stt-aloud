@@ -2,6 +2,10 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.3.3]
+
+- The models of Piper and Whisper in the side bar show their buttons only while hovered (or focused): a new folder button shows the file of the model in Finder / File Explorer, × removes it
+
 ## [1.3.2]
 
 - The dialog adding a Whisper model says "Loading the list of models…" and "No model matches" (it said voices, as for Piper)

@@ -215,6 +215,8 @@ export class SpeechSection {
         /** @type {HTMLElement[]} the rows of the model and the language, shown with Whisper */
         this._recognitionRows = [];
         this._uiLanguage = 'en';
+        /** What showing a file in the file manager is called on this system ("Reveal in Finder"). */
+        this._revealLabel = 'Open Containing Folder';
         this._note = createElement('p', { className: 'speech-section__note' });
         this._status = createElement('p', { className: 'speech-section__status', role: 'status' });
 
@@ -239,12 +241,14 @@ export class SpeechSection {
      * @param {string} note what the driver in use cannot do ('' : nothing)
      * @param {Record<string, DriverModels>} [models] the models of the drivers that have them
      * @param {string} [uiLanguage] the language of VS Code (`en`, `ru`, `zh-cn`)
+     * @param {string} [revealLabel] what showing a file in the file manager is called on this system
      */
-    setState(state, drivers, note, models = {}, uiLanguage = 'en') {
+    setState(state, drivers, note, models = {}, uiLanguage = 'en', revealLabel = 'Open Containing Folder') {
         this._state = state;
         this._drivers = drivers;
         this._models = models;
         this._uiLanguage = uiLanguage.split('-')[0].toLowerCase();
+        this._revealLabel = revealLabel;
         this._switch.checked = state.enabled;
         this.element.classList.toggle('speech-section--off', !state.enabled);
         this._volume.set(state.volume);
@@ -467,13 +471,11 @@ export class SpeechSection {
         const items = models.map((model) => {
             const problem = !model.exists ? 'the file is missing' : !model.ready ? texts.problem : '';
             const meta = [model.lang, model.downloaded ? megabytes(model.size) : 'from the disk'].filter(Boolean).join(' · ');
-            const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${model.name}` }, createIcon('close'));
-            remove.addEventListener('click', () => this._host.send('removeModel', { driver: driver.id, path: model.path }));
             return createElement('li', { className: `speech-models__item${model.exists ? '' : ' speech-models__item--missing'}`, title: model.path },
                 createElement('span', { className: 'speech-models__name', textContent: model.name }),
                 createElement('span', { className: `speech-models__meta${problem ? ' speech-models__meta--problem' : ''}` },
                     ...(problem ? [createIcon('warning'), problem] : [meta])),
-                remove);
+                this._modelActions(driver, model));
         });
         const pending = installing.map((model) => {
             const meta = createElement('span', { className: 'speech-models__meta' });
@@ -493,6 +495,21 @@ export class SpeechSection {
             createElement('ul', { className: 'speech-models__list' }, ...items, ...pending,
                 ...(items.length || pending.length ? [] : [createElement('li', { className: 'speech-models__empty', textContent: texts.empty })])),
             add);
+    }
+
+    /**
+     * @param {Driver} driver
+     * @param {VoiceModel} model
+     * @returns {HTMLElement} the buttons of a model, shown while it is hovered or focused: its folder in the
+     *   file manager (while its file is there) and × to remove it
+     */
+    _modelActions(driver, model) {
+        const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${model.name}` }, createIcon('close'));
+        remove.addEventListener('click', () => this._host.send('removeModel', { driver: driver.id, path: model.path }));
+        if (!model.exists) return createElement('span', { className: 'speech-models__actions' }, remove);
+        const reveal = createElement('button', { className: 'speech-models__reveal', type: 'button', title: `${this._revealLabel}: ${model.path}` }, createIcon('folder-opened'));
+        reveal.addEventListener('click', () => this._host.send('revealModel', { driver: driver.id, path: model.path }));
+        return createElement('span', { className: 'speech-models__actions' }, reveal, remove);
     }
 
     /**
