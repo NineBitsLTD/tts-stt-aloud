@@ -41,7 +41,7 @@ window.addEventListener('message', (event) => {
     const section = sections[message?.section];
     switch (message?.type) {
         case 'state':
-            for (const [name, item] of Object.entries(sections)) item.setState(message.settings[name], message.drivers[name], message.notes?.[name] ?? '', message.models?.[name] ?? {});
+            for (const [name, item] of Object.entries(sections)) item.setState(message.settings[name], message.drivers[name], message.notes?.[name] ?? '', message.models?.[name] ?? {}, message.uiLanguage);
             break;
         case 'voices':
             sections.tts.setVoices(message);

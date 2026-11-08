@@ -33,11 +33,11 @@ export class ModelDialog {
         this._path = createElement('input', { className: 'speech-dialog__input speech-dialog__path', type: 'text', readOnly: true, placeholder: 'No file chosen' });
         const browse = createElement('button', { className: 'speech-button', type: 'button' }, createIcon('folder-opened'), 'Browse…');
         this._disk = createElement('div', { className: 'speech-dialog__disk' }, this._path, browse,
-            createElement('p', { className: 'speech-dialog__note speech-dialog__note--wide', textContent: 'A Piper model with its .onnx.json next to it is copied into the storage of the extension and prepared there for sherpa-onnx (the file stays as it is); a model of sherpa-onnx (vits-piper-…, with tokens.txt next to it) is used where it is.' }));
+            this._diskNote = createElement('p', { className: 'speech-dialog__note speech-dialog__note--wide' }));
         this._filter = createElement('input', { className: 'speech-dialog__input', type: 'search', placeholder: 'Filter by name or language', spellcheck: false });
         this._list = createElement('ul', { className: 'speech-dialog__catalog-list', role: 'listbox' });
         this._catalogPanel = createElement('div', { className: 'speech-dialog__catalog', hidden: true }, this._filter, this._list,
-            createElement('p', { className: 'speech-dialog__note', textContent: 'The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded.' }));
+            this._catalogNote = createElement('p', { className: 'speech-dialog__note' }));
         this._error = createElement('p', { className: 'speech-dialog__error', role: 'alert' });
         this._ok = createElement('button', { className: 'speech-button speech-button--primary', type: 'submit', textContent: 'OK' });
         const cancel = createElement('button', { className: 'speech-button', type: 'button', textContent: 'Cancel' });
@@ -68,9 +68,12 @@ export class ModelDialog {
     /**
      * @param {string} title
      * @param {ModelSource} source
+     * @param {{ disk?: string, catalog?: string }} [notes] what the driver says of a file on the disk and of the catalog
      */
-    open(title, source) {
+    open(title, source, notes = {}) {
         this._title.textContent = title;
+        this._diskNote.textContent = notes.disk ?? '';
+        this._catalogNote.textContent = notes.catalog ?? '';
         this._source = source;
         this._voices = null;
         this._chosenKey = '';

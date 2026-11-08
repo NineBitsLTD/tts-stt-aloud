@@ -4,8 +4,15 @@ import { AudioPlayer, LEVEL_INTERVAL } from './AudioPlayer';
 import { MicRecorder } from './MicRecorder';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
+/** @typedef {import('./WhisperRecognizer').WhisperRecognizer} WhisperRecognizer */
 /** @typedef {import('./MicRecorder').Recording} Recording */
-/** @typedef {'waiting' | 'recording' | 'playing' | 'idle'} MicState */
+/**
+ * @typedef {object} Heard what the speech of a recording was recognized as
+ * @property {string | null} text null: not recognized (no recognizer, or it failed: `error`)
+ * @property {string} lang the language Whisper heard or was given
+ * @property {string} [error] why it was not recognized
+ */
+/** @typedef {'waiting' | 'recording' | 'playing' | 'recognizing' | 'idle'} MicState */
 /** @typedef {{ waitMs?: number, maxMs?: number, silenceMs?: number }} ListenLimits */
 
 /** The limits of a recording asked for by an extension: [min, default, max] in ms. */
@@ -30,18 +37,21 @@ function limitsOf(limits = {}) {
  * begin, ends it after a pause or at its longest (`MicRecorder`) — with the gain of the settings.
  * Other extensions may record only while STT is on (`ttsSttMdAloud.stt.enabled`); the test of the
  * side bar records either way, keeps the recording in the storage of the extension and plays it.
- * Recognition is not connected yet. The levels and the state of a recording go to `onLevel` /
- * `onState`, whoever records.
+ * With the Whisper driver the speech is recognized (`WhisperRecognizer`: the model and the language
+ * of the settings — `ui`: the language of VS Code). The levels and the state of a recording go to
+ * `onLevel` / `onState`, whoever records.
  */
 export class SpeechToText {
 
     /**
      * @param {vscode.ExtensionContext} context
      * @param {SpeechSettings} settings
+     * @param {WhisperRecognizer} whisper
      */
-    constructor(context, settings) {
+    constructor(context, settings, whisper) {
         this._storage = context.globalStorageUri;
         this._settings = settings;
+        this._whisper = whisper;
         this._recorder = new MicRecorder();
         this._player = new AudioPlayer();
         /** @type {vscode.EventEmitter<{ level?: number, levels?: number[], interval?: number }>} */
@@ -86,11 +96,46 @@ export class SpeechToText {
      * @param {ListenLimits} [limits] waitMs: for the speech to begin (5 s), maxMs: the longest speech
      *   (10 s), silenceMs: the pause that ends it (1 s)
      * @param {unknown} [owner]
-     * @returns {Promise<Recording>} the speech as a WAV file (null when none began)
+     * @returns {Promise<Recording & Heard>} the speech as a WAV file (null when none began) and its text
      */
     async record(limits = {}, owner = 'api') {
         if (!this._settings.get().stt.enabled) throw new Error('Speech to text is off: turn STT on in the TTS / STT side bar to let extensions use the microphone.');
-        return this._record(limitsOf(limits), owner);
+        const recording = await this._record(limitsOf(limits), owner);
+        return { ...recording, ...(recording.wav ? await this.recognize(recording.wav) : { text: null, lang: '' }) };
+    }
+
+    /**
+     * @returns {Promise<{ id: string, available: boolean, message: string, model: string }>} the driver
+     *   in use: available when it recognizes (message: why not; model: the model recognizing)
+     */
+    async recognition() {
+        const { driver, model } = this._settings.get().stt;
+        if (!driver) return { id: driver, available: false, message: 'Recognition: no driver — check Whisper under Add driver, then add a model.', model: '' };
+        if (driver !== 'whisper') {
+            return { id: driver, available: false, message: `Recognition: ${this._settings.driverName('stt', driver)} does not recognize speech yet; Whisper does (Add driver → Whisper).`, model: '' };
+        }
+        const missing = this._whisper.unavailable();
+        if (missing) return { id: driver, available: false, message: missing, model: '' };
+        const chosen = await this._whisper.model(model);
+        if (!chosen) return { id: driver, available: false, message: 'Whisper has no model ready: add one under Add driver → Whisper.', model: '' };
+        return { id: driver, available: true, message: '', model: chosen.name };
+    }
+
+    /**
+     * Recognizes speech with the driver, the model and the language of the settings.
+     * @param {Buffer} wav
+     * @returns {Promise<Heard>}
+     */
+    async recognize(wav) {
+        const recognition = await this.recognition();
+        if (!recognition.available) return { text: null, lang: '', error: recognition.message };
+        const { model, language } = this._settings.get().stt;
+        try {
+            const { text, lang } = await this._whisper.recognize(wav, { model, language: language === 'ui' ? vscode.env.language.split('-')[0].toLowerCase() : language });
+            return { text, lang };
+        } catch (error) {
+            return { text: null, lang: '', error: String(error?.message || error) };
+        }
     }
 
     /**
@@ -103,27 +148,35 @@ export class SpeechToText {
 
     /**
      * The test of the side bar: removes the last recording, records speech (5 s for it to begin,
-     * 10 s at most, ended by 1 s of silence), keeps it and plays it at the volume of the speech.
+     * 10 s at most, ended by 1 s of silence), keeps it, plays it at the volume of the speech and
+     * recognizes it meanwhile.
      * @param {number} volume from 0 to 1
-     * @returns {Promise<Recording & { played: boolean }>}
+     * @returns {Promise<Recording & Heard & { played: boolean }>}
      */
     async test(volume) {
         const file = this.testFile;
         if (file) await rm(file, { force: true });
         const recording = await this._record(limitsOf(), 'test');
-        if (!recording.wav) return { ...recording, played: false };
+        if (!recording.wav) return { ...recording, played: false, text: null, lang: '' };
         if (file) {
             await mkdir(this._storage.fsPath, { recursive: true });
             await writeFile(file, recording.wav);
         }
+        const recognizing = (await this.recognition()).available;
+        const heard = this.recognize(recording.wav);
         this._playing = true;
         this._states.fire({ state: 'playing', owner: 'test' });
+        let played;
         try {
-            const played = await this._player.play(recording.wav, { volume, onLevels: (levels, interval) => this._levels.fire({ levels, interval }) });
-            return { ...recording, played };
+            played = await this._player.play(recording.wav, { volume, onLevels: (levels, interval) => this._levels.fire({ levels, interval }) });
         } finally {
             this._playing = false;
             this._levels.fire({ levels: [], interval: LEVEL_INTERVAL });
+        }
+        if (recognizing) this._states.fire({ state: 'recognizing', owner: 'test' });
+        try {
+            return { ...recording, played, ...(await heard) };
+        } finally {
             this._states.fire({ state: 'idle', owner: 'test' });
         }
     }

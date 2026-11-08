@@ -2,16 +2,16 @@ import { pickVoice, speaksLanguage } from '../utils/pickVoice';
 import { guessLanguage } from './PreviewTranslation';
 
 /** @typedef {import('./HostRequests').HostRequests} HostRequests */
-/** @typedef {import('../utils/pickVoice').Voice} Voice */
+/** @typedef {import('../utils/pickVoice').Voice & { key: string, driverName?: string }} Voice key: `<driver>:<name>` from the host, the name for the voices of the webview */
 /** @typedef {{ voice?: string, rate: number, lang?: string, volume?: number }} PhraseOptions */
 /**
  * @typedef {object} ReadingSettings
- * @property {string} voice the voice of the preview ('' : Auto)
+ * @property {string} voice the key of the voice of the preview ('' : Auto)
  * @property {number} rate the speed of the speech settings
  * @property {boolean} enabled whether text to speech is on
  * @property {number} volume % of the volume of the computer
- * @property {string} driver the driver of the speech settings
- * @property {string[]} checked the checked voices of the driver (Auto picks them first)
+ * @property {string} drivers the active drivers of the speech settings, joined
+ * @property {string[]} checked the keys of the checked voices (Auto picks them first)
  */
 
 /** Elements read as parts of the text. */
@@ -42,7 +42,7 @@ function phrasesOf(text) {
 }
 
 /**
- * The voices of the webview (Web Speech API), when the driver of the speech settings has none.
+ * The voices of the webview (Web Speech API), when the drivers of the speech settings have none.
  */
 class WebSpeech {
 
@@ -90,7 +90,7 @@ class WebSpeech {
 }
 
 /**
- * The driver of the speech settings, through the host (`TextToSpeech`): its volume, the level
+ * The active drivers of the speech settings, through the host (`TextToSpeech`): its volume, the level
  * meter of the side bar, the phrase to come rendered ahead.
  */
 class HostSpeech {
@@ -128,9 +128,9 @@ class HostSpeech {
  * Reading the preview aloud as in the claude-ai preview: the text shown (in its translation) phrase
  * by phrase — blocks split into sentences, code blocks skipped —, the block being read highlighted
  * and scrolled to; Pause / resume, a phrase back or on, the time read and, before, an estimate of
- * the time it takes. It speaks with the driver of the speech settings through the host (its
- * voices, volume and speed; Auto picks the checked voices first), with the voices of the webview
- * when the driver has none; hidden while text to speech is off.
+ * the time it takes. It speaks with the active drivers of the speech settings through the host
+ * (their voices together, the volume and speed; Auto picks the checked voices first, then by
+ * quality), with the voices of the webview when the drivers have none; hidden while TTS is off.
  */
 export class ReadAloud {
 
@@ -157,9 +157,9 @@ export class ReadAloud {
         /** @type {Voice[]} */
         this._voices = [];
         /** @type {ReadingSettings} */
-        this._settings = { voice: '', rate: 1, enabled: true, volume: 100, driver: 'system', checked: [] };
-        /** the driver whose voices are loaded */
-        this._driver = 'system';
+        this._settings = { voice: '', rate: 1, enabled: true, volume: 100, drivers: 'system', checked: [] };
+        /** the active drivers whose voices are loaded */
+        this._drivers = 'system';
         /** the language of the shown text ('' : the document's own) */
         this._lang = '';
         /** @type {{ phrases: { text: string, element: HTMLElement | null }[], index: number, paused: boolean, run: number, lit: HTMLElement | null, spent: number, since: number | null } | null} */
@@ -184,13 +184,13 @@ export class ReadAloud {
             rate: Number(settings?.rate) || 1,
             enabled: settings?.enabled !== false,
             volume: Number.isFinite(Number(settings?.volume)) ? Number(settings.volume) : 100,
-            driver: settings?.driver ?? 'system',
+            drivers: settings?.drivers ?? 'system',
             checked: Array.isArray(settings?.checked) ? settings.checked : [],
         };
         this._showRate();
         if (!this._settings.enabled) this.stop();
-        if (this._settings.driver !== this._driver) {
-            // Another driver, other voices
+        if (this._settings.drivers !== this._drivers) {
+            // Other drivers, other voices
             this.stop();
             this._ready = this._loadVoices();
         }
@@ -221,7 +221,7 @@ export class ReadAloud {
     }
 
     async _loadVoices() {
-        this._driver = this._settings.driver;
+        this._drivers = this._settings.drivers;
         const hosted = new HostSpeech(this._host);
         const voices = await hosted.voices().catch(() => []);
         if (voices.length) {
@@ -230,7 +230,7 @@ export class ReadAloud {
         } else {
             const web = await WebSpeech.voices();
             this._engine = web.length ? new WebSpeech() : null;
-            this._voices = web;
+            this._voices = web.map(voice => ({ ...voice, key: voice.name }));
         }
         this._fillVoices();
         this._sync();
@@ -258,10 +258,11 @@ export class ReadAloud {
 
     /**
      * @param {string} lang
-     * @returns {string} the best voice of a language, a checked one first ('' : none, the system picks)
+     * @returns {string} the key of the best voice of a language — a checked one first, then by quality —
+     *   ('' : none, the driver picks)
      */
     _voiceFor(lang) {
-        return pickVoice(this._voices, lang, this._settings.checked);
+        return pickVoice(this._voices.map(voice => ({ name: voice.key, lang: voice.lang, score: voice.score })), lang, this._settings.checked);
     }
 
     /**
@@ -283,13 +284,14 @@ export class ReadAloud {
         const ofLang = voice => speaksLanguage(voice, lang);
         const checked = new Set(this._settings.checked);
         const sorted = [...this._voices].sort((a, b) => Number(ofLang(b)) - Number(ofLang(a))
-            || Number(checked.has(b.name)) - Number(checked.has(a.name)) || a.name.localeCompare(b.name));
-        const automatic = this._voiceFor(lang);
+            || Number(checked.has(b.key)) - Number(checked.has(a.key)) || a.name.localeCompare(b.name));
+        const automatic = this._voices.find(voice => voice.key === this._voiceFor(lang));
+        const label = voice => `${voice.name}${voice.lang ? ` (${voice.lang})` : ''}${voice.driverName ? ` · ${voice.driverName}` : ''}`;
         this._voiceSelect.replaceChildren(
-            new Option(automatic ? `Auto (${automatic})` : 'Auto', ''),
-            ...sorted.map(voice => new Option(voice.lang ? `${voice.name} (${voice.lang})` : voice.name, voice.name)),
+            new Option(automatic ? `Auto (${label(automatic)})` : 'Auto', ''),
+            ...sorted.map(voice => new Option(label(voice), voice.key)),
         );
-        this._voiceSelect.value = this._voices.some(voice => voice.name === this._settings.voice) ? this._settings.voice : '';
+        this._voiceSelect.value = this._voices.some(voice => voice.key === this._settings.voice) ? this._settings.voice : '';
         this._voiceSelect.hidden = !this._voices.length || !this._settings.enabled;
     }
 

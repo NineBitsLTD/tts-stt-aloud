@@ -1,19 +1,55 @@
 import { createElement, createIcon } from './createElement';
+import { DriverPicker } from './DriverPicker';
 import { megabytes } from './ModelDialog';
 import { VoicePicker } from './VoicePicker';
 
 /** @typedef {import('../markdown/HostRequests').HostRequests} HostRequests */
 /** @typedef {import('./ServerDialog').ServerDialog} ServerDialog */
 /** @typedef {import('./ModelDialog').ModelDialog} ModelDialog */
-/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean }} VoiceModel ready: prepared for sherpa-onnx */
+/** @typedef {{ path: string, name: string, lang: string, downloaded: boolean, exists: boolean, size: number, ready: boolean, languages?: string[], multilingual?: boolean }} VoiceModel ready: the engine can use it; languages: those Whisper recognizes */
 /** @typedef {{ models: VoiceModel[], pending: { name: string, action: string }[] }} DriverModels the voice models of a driver, those being installed (downloading, preparing) */
 /** @typedef {import('./VoicePicker').PickerVoice} PickerVoice */
 /** @typedef {{ id: string, name: string, kind: 'system' | 'preset' | 'external', url?: string, enabled: boolean }} Driver */
-/** @typedef {{ enabled: boolean, volume: number, driver: string, rate?: number, voice?: string, voices?: Record<string, string[]> }} SectionState */
-/** @typedef {{ heard: boolean, duration: number, ended: string, text: string | null }} MicTest the result of the microphone test */
+/** @typedef {{ enabled: boolean, volume: number, driver: string, active?: string[], rate?: number, voice?: string, voices?: Record<string, string[]>, model?: string, language?: string }} SectionState active: the drivers speaking together (TTS); voice: the key of the voice tested */
+/** @typedef {{ heard: boolean, duration: number, ended: string, text: string | null, lang?: string, note?: string }} MicTest the result of the microphone test; text null: not recognized (note: why) */
 
 /** How a recording of the microphone test ended, as the section says it. */
 const ENDINGS = { pause: 'after a pause', limit: 'at its longest', stopped: 'stopped' };
+/** What the block of the models of a driver and its dialog say. */
+const MODEL_TEXTS = {
+    piper: {
+        title: 'Piper voice models',
+        add: 'Add voice model',
+        dialog: 'Add Piper Voice Model',
+        empty: 'No voice models yet',
+        problem: 'not prepared for sherpa-onnx',
+        disk: 'A Piper model with its .onnx.json next to it is copied into the storage of the extension and prepared there for sherpa-onnx (the file stays as it is); a model of sherpa-onnx (vits-piper-…, with tokens.txt next to it) is used where it is.',
+        catalog: 'The voices of Piper (rhasspy/piper-voices) are prepared for sherpa-onnx as they are downloaded.',
+    },
+    whisper: {
+        title: 'Whisper models',
+        add: 'Add model',
+        dialog: 'Add Whisper Model',
+        empty: 'No models yet',
+        problem: 'not a Whisper model of sherpa-onnx, or its decoder or tokens are missing',
+        disk: 'Choose the encoder of a Whisper model of sherpa-onnx (<name>-encoder.onnx or <name>-encoder.int8.onnx): its decoder and <name>-tokens.txt must be next to it; it is used where it is.',
+        catalog: 'The Whisper models of sherpa-onnx (int8), downloaded into the storage of the extension. For Russian take small or a larger one: tiny and base are fast but rough; .en models know English only.',
+    },
+};
+/** The languages listed first in the language of recognition. */
+const FIRST_LANGUAGES = ['ru', 'uk', 'en'];
+
+/**
+ * @param {string} code
+ * @returns {string} the English name of a language ("Russian"; the code when unknown)
+ */
+function languageName(code) {
+    try {
+        return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code;
+    } catch {
+        return code;
+    }
+}
 
 /**
  * @param {number} ms
@@ -83,10 +119,11 @@ class LevelMeter {
 /**
  * A section of the speech side bar (TTS or STT): the title with the on / off switch, the volume
  * (TTS: of the speech, a share of the computer's; STT: the gain of the microphone), the speed
- * (TTS), the level meter, the driver, "Add driver" with the drivers offered (the presets, the
- * external servers added by "Add External", removed by ×; under a driver with voice models — Piper —
- * its models and "Add voice model"), the voices and their test (TTS), the test of the microphone —
- * recorded, played, the text recognized below (STT). Every change goes to the host, which keeps it
+ * (TTS), the level meter, the driver (TTS: the drivers speaking together, `DriverPicker`), "Add driver" with the drivers offered (the presets, the
+ * external servers added by "Add External", removed by ×; under a driver with models — Piper,
+ * Whisper — its models and "Add model"), the voices and their test (TTS), the model and the language
+ * Whisper recognizes with and the test of the microphone — recorded, played, the text recognized
+ * below (STT). Every change goes to the host, which keeps it
  * in the settings of VS Code and sends the state back.
  */
 export class SpeechSection {
@@ -129,6 +166,8 @@ export class SpeechSection {
         this._meter = new LevelMeter();
         this._driverSelect = createElement('select', { className: 'speech-row__select', title: `Driver of ${title}` });
         this._driverSelect.addEventListener('change', () => this._update('driver', this._driverSelect.value));
+        /** @type {DriverPicker | null} the drivers speaking together (TTS) */
+        this._driverPicker = name === 'tts' ? new DriverPicker({ title: 'Drivers of TTS: check several to have their voices together', onChange: ids => this._update('active', ids) }) : null;
         this._addToggle = createElement('button', { className: 'speech-button speech-section__add', type: 'button', ariaExpanded: 'false' },
             createIcon('add'), 'Add driver', createIcon('chevron-down'));
         this._driverList = createElement('div', { className: 'speech-drivers__list' });
@@ -153,6 +192,13 @@ export class SpeechSection {
         this._resultText = null;
         this._resultMeta = null;
         this._progressTimer = 0;
+        /** @type {HTMLSelectElement | null} the model recognizing (STT, Whisper) */
+        this._modelSelect = null;
+        /** @type {HTMLSelectElement | null} the language of recognition (STT, Whisper) */
+        this._languageSelect = null;
+        /** @type {HTMLElement[]} the rows of the model and the language, shown with Whisper */
+        this._recognitionRows = [];
+        this._uiLanguage = 'en';
         this._note = createElement('p', { className: 'speech-section__note' });
         this._status = createElement('p', { className: 'speech-section__status', role: 'status' });
 
@@ -161,8 +207,9 @@ export class SpeechSection {
             this._volume.row,
             ...(tts ? [this._speedRow()] : []),
             SpeechSection._row(createIcon('pulse'), 'Level', this._meter.element),
-            SpeechSection._row(createIcon('plug'), 'Driver', this._driverSelect),
+            SpeechSection._row(createIcon('plug'), tts ? 'Drivers' : 'Driver', this._driverPicker?.element ?? this._driverSelect),
             createElement('div', { className: 'speech-section__drivers' }, this._addToggle, this._driversPanel),
+            ...(tts ? [] : this._recognitionRowsOf()),
             this._note,
             ...(tts ? this._voiceRows() : [this._microphoneTest()]),
             this._status,
@@ -174,29 +221,35 @@ export class SpeechSection {
      * @param {SectionState} state the settings of the section
      * @param {Driver[]} drivers
      * @param {string} note what the driver in use cannot do ('' : nothing)
-     * @param {Record<string, DriverModels>} [models] the voice models of the drivers that have them
+     * @param {Record<string, DriverModels>} [models] the models of the drivers that have them
+     * @param {string} [uiLanguage] the language of VS Code (`en`, `ru`, `zh-cn`)
      */
-    setState(state, drivers, note, models = {}) {
+    setState(state, drivers, note, models = {}, uiLanguage = 'en') {
         this._state = state;
         this._drivers = drivers;
         this._models = models;
+        this._uiLanguage = uiLanguage.split('-')[0].toLowerCase();
         this._switch.checked = state.enabled;
         this.element.classList.toggle('speech-section--off', !state.enabled);
         this._volume.set(state.volume);
         this._speed?.set(state.rate);
-        this._driverSelect.replaceChildren(...drivers.filter(driver => driver.enabled).map(driver => new Option(driver.name, driver.id)));
+        const offered = drivers.filter(driver => driver.enabled);
+        this._driverSelect.replaceChildren(...(offered.length ? offered.map(driver => new Option(driver.name, driver.id)) : [new Option('None: check one under Add driver', '')]));
+        this._driverSelect.disabled = !offered.length;
         this._driverSelect.value = state.driver;
+        this._driverPicker?.set(drivers.filter(driver => driver.enabled), state.active ?? [state.driver]);
         this._renderDrivers();
+        this._showRecognition();
         this._note.textContent = note;
         this._showVoices();
         this._syncTest();
     }
 
     /**
-     * @param {{ driver: string, voices: PickerVoice[] }} message the voices of a driver
+     * @param {{ drivers: string, voices: PickerVoice[] }} message the voices of the active drivers (joined)
      */
-    setVoices({ driver, voices }) {
-        this._voicesOf = driver;
+    setVoices({ drivers, voices }) {
+        this._voicesOf = drivers;
         this._voices = voices;
         this._showVoices();
         this._syncTest();
@@ -220,7 +273,7 @@ export class SpeechSection {
 
     /**
      * What the microphone does (STT), for the test or another extension.
-     * @param {{ state: 'waiting' | 'recording' | 'playing' | 'idle', test: boolean, limits?: { waitMs: number, maxMs: number, silenceMs: number } }} message
+     * @param {{ state: 'waiting' | 'recording' | 'playing' | 'recognizing' | 'idle', test: boolean, limits?: { waitMs: number, maxMs: number, silenceMs: number } }} message
      */
     setMicState({ state, test, limits }) {
         if (!this._progress) return;
@@ -241,7 +294,7 @@ export class SpeechSection {
             show();
             this._progressTimer = setInterval(show, 100);
         } else {
-            this._progress.textContent = state === 'playing' ? 'Playing the recording' : '';
+            this._progress.textContent = state === 'playing' ? 'Playing the recording' : state === 'recognizing' ? 'Recognizing the speech…' : '';
         }
         this._progress.classList.toggle('speech-section__progress--live', state !== 'idle');
     }
@@ -286,8 +339,8 @@ export class SpeechSection {
      */
     _voiceRows() {
         this._picker = new VoicePicker({
-            onSelect: name => this._update('voice', name),
-            onCheck: (name, checked) => this._host.send('voiceChecked', { name, checked }),
+            onSelect: key => this._update('voice', key),
+            onCheck: (key, checked) => this._host.send('voiceChecked', { key, checked }),
         });
         return [
             SpeechSection._row(createIcon('record-keys'), 'Voice', this._picker.element),
@@ -310,6 +363,47 @@ export class SpeechSection {
     }
 
     /**
+     * @returns {HTMLElement[]} the rows of the model and the language of recognition (STT), shown with Whisper
+     */
+    _recognitionRowsOf() {
+        this._modelSelect = createElement('select', { className: 'speech-row__select', title: 'The Whisper model that recognizes speech' });
+        this._modelSelect.addEventListener('change', () => this._update('model', this._modelSelect.value));
+        this._languageSelect = createElement('select', { className: 'speech-row__select', title: 'The language of the speech recognized' });
+        this._languageSelect.addEventListener('change', () => this._update('language', this._languageSelect.value));
+        this._recognitionRows = [
+            SpeechSection._row(createIcon('file-binary'), 'Model', this._modelSelect),
+            SpeechSection._row(createIcon('globe'), 'Language', this._languageSelect),
+        ];
+        return this._recognitionRows;
+    }
+
+    /** The model and the language of recognition: the ready Whisper models, the languages of the one chosen. */
+    _showRecognition() {
+        if (!this._modelSelect || !this._state) return;
+        const whisper = this._state.driver === 'whisper';
+        this._recognitionRows.forEach((row) => { row.hidden = !whisper; });
+        if (!whisper) return;
+        const ready = (this._models.whisper?.models ?? []).filter(model => model.exists && model.ready);
+        const chosen = ready.find(model => model.path === this._state.model) ?? ready[0];
+        this._modelSelect.replaceChildren(...(ready.length
+            ? ready.map(model => new Option(model.lang === 'en' ? `${model.name} (English only)` : model.name, model.path))
+            : [new Option('No model ready', '')]));
+        this._modelSelect.value = chosen?.path ?? '';
+        this._modelSelect.disabled = !ready.length;
+        const languages = chosen?.languages ?? [];
+        const order = code => (FIRST_LANGUAGES.includes(code) ? FIRST_LANGUAGES.indexOf(code) : FIRST_LANGUAGES.length);
+        const sorted = [...languages].sort((a, b) => order(a) - order(b) || languageName(a).localeCompare(languageName(b)));
+        const options = chosen && !chosen.multilingual ? [new Option('English (the model knows English only)', '')] : [
+            new Option('Auto: Whisper detects the language', ''),
+            new Option(`As VS Code: ${languageName(this._uiLanguage)}`, 'ui'),
+            ...sorted.map(code => new Option(languageName(code), code)),
+        ];
+        this._languageSelect.replaceChildren(...options);
+        this._languageSelect.value = [...this._languageSelect.options].some(option => option.value === this._state.language) ? this._state.language : '';
+        this._languageSelect.disabled = !chosen || !chosen.multilingual;
+    }
+
+    /**
      * @param {MicTest | null} result of the microphone test (null: a test begins)
      */
     _showResult(result) {
@@ -320,12 +414,13 @@ export class SpeechSection {
             this._progress.textContent = result.ended === 'no-speech' ? 'No speech was heard: speak right after pressing Test.' : 'The test was stopped.';
             return;
         }
-        this._resultText.textContent = result.text ?? 'Recognition is not connected yet: the recording was played back.';
-        this._resultText.classList.toggle('speech-section__result-text--none', result.text === null);
-        this._resultMeta.textContent = `Recorded ${result.duration.toFixed(1)} s, ended ${ENDINGS[result.ended] ?? result.ended}`;
+        this._resultText.textContent = result.text || (result.text === '' ? 'Nothing was recognized.' : `Not recognized: ${result.note || 'no recognizer'}`);
+        this._resultText.classList.toggle('speech-section__result-text--none', !result.text);
+        const language = result.text && result.lang ? `, ${languageName(result.lang)}` : '';
+        this._resultMeta.textContent = `Recorded ${result.duration.toFixed(1)} s, ended ${ENDINGS[result.ended] ?? result.ended}${language}`;
     }
 
-    /** Offered drivers besides System: check boxes; the external servers with × to remove them. */
+    /** The drivers that can be offered (TTS: besides System): check boxes; the external servers with × to remove them. */
     _renderDrivers() {
         const extra = this._drivers.filter(driver => driver.kind !== 'system');
         this._driverList.replaceChildren(...extra.map((driver) => {
@@ -346,13 +441,14 @@ export class SpeechSection {
     }
 
     /**
-     * @param {Driver} driver offered, with voice models
+     * @param {Driver} driver offered, with models (Piper, Whisper)
      * @param {DriverModels} models
-     * @returns {HTMLElement} its models (× removes one) and "Add voice model"
+     * @returns {HTMLElement} its models (× removes one) and "Add model"
      */
     _modelsBlock(driver, { models, pending: installing }) {
+        const texts = MODEL_TEXTS[driver.id] ?? MODEL_TEXTS.whisper;
         const items = models.map((model) => {
-            const problem = !model.exists ? 'the file is missing' : !model.ready ? 'not prepared for sherpa-onnx' : '';
+            const problem = !model.exists ? 'the file is missing' : !model.ready ? texts.problem : '';
             const meta = [model.lang, model.downloaded ? megabytes(model.size) : 'from the disk'].filter(Boolean).join(' · ');
             const remove = createElement('button', { className: 'speech-drivers__remove', type: 'button', title: `Remove ${model.name}` }, createIcon('close'));
             remove.addEventListener('click', () => this._host.send('removeModel', { driver: driver.id, path: model.path }));
@@ -365,24 +461,26 @@ export class SpeechSection {
         const pending = installing.map(({ name, action }) => createElement('li', { className: 'speech-models__item speech-models__item--pending' },
             createElement('span', { className: 'speech-models__name', textContent: name }),
             createElement('span', { className: 'speech-models__meta' }, createIcon('loading codicon-modifier-spin'), `${action}…`)));
-        const add = createElement('button', { className: 'speech-button speech-models__add', type: 'button' }, createIcon('add'), 'Add voice model');
-        add.addEventListener('click', () => this._modelDialog.open(`Add ${driver.name} Voice Model`, {
-            browse: () => this._host.request('browseModel'),
+        const add = createElement('button', { className: 'speech-button speech-models__add', type: 'button' }, createIcon('add'), texts.add);
+        add.addEventListener('click', () => this._modelDialog.open(texts.dialog, {
+            browse: () => this._host.request('browseModel', { driver: driver.id }),
             catalog: () => this._host.request('modelCatalog', { driver: driver.id }),
             add: choice => this._host.request('addModel', { driver: driver.id, ...choice }),
-        }));
+        }, { disk: texts.disk, catalog: texts.catalog }));
         return createElement('div', { className: 'speech-models' },
-            createElement('span', { className: 'speech-models__title', textContent: `${driver.name} voice models` }),
+            createElement('span', { className: 'speech-models__title', textContent: texts.title }),
             createElement('ul', { className: 'speech-models__list' }, ...items, ...pending,
-                ...(items.length || pending.length ? [] : [createElement('li', { className: 'speech-models__empty', textContent: 'No voice models yet' })])),
+                ...(items.length || pending.length ? [] : [createElement('li', { className: 'speech-models__empty', textContent: texts.empty })])),
             add);
     }
 
-    /** The voices of the driver in use, checked as in the settings (TTS). */
+    /** The voices of the active drivers, checked as in the settings (TTS). */
     _showVoices() {
         if (!this._picker || !this._state) return;
-        const current = this._voicesOf === this._state.driver ? this._voices : [];
-        this._picker.set(current, this._state.voices?.[this._state.driver] ?? [], this._state.voice ?? '');
+        const active = this._state.active ?? [this._state.driver];
+        const current = this._voicesOf === active.join(',') ? this._voices : [];
+        const checked = Object.entries(this._state.voices ?? {}).filter(([driver]) => active.includes(driver)).flatMap(([driver, names]) => names.map(name => `${driver}:${name}`));
+        this._picker.set(current, checked, this._state.voice ?? '');
     }
 
     /**

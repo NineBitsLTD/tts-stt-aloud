@@ -96,6 +96,24 @@ export class WavAudio {
         return rms > 0 ? Math.max(0, Math.min(1, (20 * Math.log10(rms) + 60) / 60)) : 0;
     }
 
+    /**
+     * @returns {Float32Array} the samples from -1 to 1, the channels mixed into one
+     */
+    samples() {
+        const bytes = this._float ? 4 : 2;
+        const frames = (this._end - this._start) / (bytes * this.channels);
+        const out = new Float32Array(frames);
+        for (let frame = 0; frame < frames; frame++) {
+            let sum = 0;
+            for (let channel = 0; channel < this.channels; channel++) {
+                const offset = this._start + (frame * this.channels + channel) * bytes;
+                sum += this._float ? this.buffer.readFloatLE(offset) : this.buffer.readInt16LE(offset) / 32768;
+            }
+            out[frame] = sum / this.channels;
+        }
+        return out;
+    }
+
     /** @returns {number} seconds */
     get duration() {
         return (this._end - this._start) / ((this._float ? 4 : 2) * this.channels * this.sampleRate);

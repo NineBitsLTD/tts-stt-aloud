@@ -6,12 +6,13 @@ const CONFIG = 'ttsSttMdAloud';
 const EXTERNAL = 'external:';
 
 /**
- * The drivers that come with the extension; System is always offered.
+ * The drivers that come with the extension. System (TTS) is always offered; STT has no System driver:
+ * VS Code may not use the speech recognition of macOS (its Info.plist does not ask for it).
  * @type {Record<SpeechSection, { id: string, name: string }[]>}
  */
 export const PRESET_DRIVERS = {
     tts: [{ id: 'system', name: 'System' }, { id: 'piper', name: 'Piper' }, { id: 'silero', name: 'Silero' }],
-    stt: [{ id: 'system', name: 'System' }, { id: 'whisper', name: 'Whisper' }],
+    stt: [{ id: 'whisper', name: 'Whisper' }],
 };
 
 /** Keys a webview may set with `update`, with their ranges. */
@@ -27,12 +28,17 @@ const RANGES = {
  * @typedef {object} SectionSettings
  * @property {boolean} enabled
  * @property {number} volume % of the volume of the computer (TTS), gain in % (STT)
- * @property {string} driver the driver in use (`system` when the chosen one is not offered)
- * @property {string[]} drivers drivers offered besides System
+ * @property {string} driver the driver in use; the chosen one not offered: TTS `system`, STT the first
+ *   offered ('' : none)
+ * @property {string[]} drivers drivers offered (TTS: besides System)
  * @property {SpeechServer[]} servers external servers
- * @typedef {SectionSettings & { rate: number, voice: string, voices: Record<string, string[]>, models: Record<string, string[]> }} TtsSettings
- *   voices: the checked voices by driver; models: the files of the voice models by driver (Piper: `.onnx`)
- * @typedef {{ tts: TtsSettings, stt: SectionSettings }} AllSpeechSettings
+ * @property {Record<string, string[]>} models the files of the models by driver (Piper: `.onnx`; Whisper: its encoder)
+ * @typedef {SectionSettings & { active: string[], rate: number, voice: string, voices: Record<string, string[]> }} TtsSettings
+ *   active: the drivers speaking together, offered ones, at least one (`driver`: the first of them);
+ *   voice: the key of the voice tested (`<driver>:<name>`); voices: the checked voices by driver
+ * @typedef {SectionSettings & { model: string, language: string }} SttSettings model: the path of the
+ *   model recognizing ('' : the first ready one); language: '' Auto, `ui` the language of VS Code, else a code
+ * @typedef {{ tts: TtsSettings, stt: SttSettings }} AllSpeechSettings
  */
 
 /**
@@ -90,19 +96,22 @@ export class SpeechSettings {
         const config = vscode.workspace.getConfiguration(CONFIG);
         return {
             tts: {
-                ...this._section('tts', config),
+                ...this._tts(config),
                 rate: clamp(config.get('tts.rate'), 0.5, 2, 1),
                 voice: String(config.get('tts.voice') ?? ''),
                 voices: listsOf(config.get('tts.voices')),
-                models: listsOf(config.get('tts.models')),
             },
-            stt: this._section('stt', config),
+            stt: {
+                ...this._section('stt', config),
+                model: String(config.get('stt.model') ?? ''),
+                language: String(config.get('stt.language') ?? '').trim().toLowerCase(),
+            },
         };
     }
 
     /**
      * @param {SpeechSection} section
-     * @returns {SpeechDriver[]} System, the preset drivers and the external servers; enabled: offered
+     * @returns {SpeechDriver[]} the preset drivers (TTS: System first) and the external servers; enabled: offered
      */
     drivers(section) {
         const { drivers, servers } = this.get()[section];
@@ -122,7 +131,8 @@ export class SpeechSettings {
     }
 
     /**
-     * Sets a value a webview may set: enabled, volume, rate (TTS), driver, voice (TTS).
+     * Sets a value a webview may set: enabled, volume, rate (TTS), driver (TTS: the only active one),
+     * active (TTS: the drivers speaking together), voice (TTS), model and language (STT).
      * @param {SpeechSection} section
      * @param {string} key
      * @param {unknown} value
@@ -131,14 +141,20 @@ export class SpeechSettings {
         const range = RANGES[key]?.[section];
         if (key === 'enabled') value = !!value;
         else if (range && Number.isFinite(Number(value))) value = clamp(value, range[0], range[1], range[0]);
-        else if (key === 'driver') value = this.drivers(section).some(driver => driver.enabled && driver.id === value) ? value : 'system';
+        else if (key === 'driver' && section === 'tts') return this._setActive([String(value)]);
+        else if (key === 'driver') {
+            if (!this.drivers(section).some(driver => driver.enabled && driver.id === value)) return;
+        }
         else if (key === 'voice' && section === 'tts') value = String(value ?? '');
+        else if ((key === 'model' || key === 'language') && section === 'stt') value = String(value ?? '');
+        else if (key === 'active' && section === 'tts') return this._setActive(Array.isArray(value) ? value.map(String) : []);
         else return;
         await this._set(`${section}.${key}`, value);
     }
 
     /**
-     * Offers a driver besides System, or no longer (the one in use falls back to System).
+     * Offers a driver (TTS: besides System), or no longer (TTS: it leaves the active ones; STT: the one in
+     * use falls back to the first offered).
      * @param {SpeechSection} section
      * @param {string} id
      * @param {boolean} enabled
@@ -147,8 +163,10 @@ export class SpeechSettings {
         const known = this.drivers(section).some(driver => driver.kind !== 'system' && driver.id === id);
         const { drivers, driver } = this.get()[section];
         if (!known) return;
+        const active = section === 'tts' ? this.get().tts.active : [];
         await this._set(`${section}.drivers`, enabled ? [...new Set([...drivers, id])] : drivers.filter(item => item !== id));
-        if (!enabled && driver === id) await this._set(`${section}.driver`, 'system');
+        if (!enabled && section === 'tts' && active.includes(id)) await this._setActive(active.filter(item => item !== id));
+        else if (!enabled && driver === id) await this._set(`${section}.driver`, '');
     }
 
     /**
@@ -185,9 +203,11 @@ export class SpeechSettings {
         const settings = this.get()[section];
         const name = id.slice(EXTERNAL.length);
         if (!id.startsWith(EXTERNAL) || !settings.servers.some(server => server.name === name)) return;
+        const active = section === 'tts' ? this.get().tts.active : [];
         await this._set(`${section}.servers`, settings.servers.filter(server => server.name !== name));
         await this._set(`${section}.drivers`, settings.drivers.filter(item => item !== id));
-        if (settings.driver === id) await this._set(`${section}.driver`, 'system');
+        if (active.includes(id)) await this._setActive(active.filter(item => item !== id));
+        else if (settings.driver === id) await this._set(`${section}.driver`, '');
         const voices = this.get().tts.voices;
         if (section === 'tts' && id in voices) await this._set('tts.voices', SpeechSettings._without(voices, id));
         await this._secrets.delete(SpeechSettings._secretKey(section, name));
@@ -217,26 +237,28 @@ export class SpeechSettings {
     }
 
     /**
-     * Adds the file of a voice model of a TTS driver (nothing when it is listed already).
+     * Adds the file of a model of a driver (nothing when it is listed already).
+     * @param {SpeechSection} section
      * @param {string} driver
      * @param {string} path
      */
-    async addModel(driver, path) {
-        const models = this.get().tts.models;
+    async addModel(section, driver, path) {
+        const models = this.get()[section].models;
         const paths = models[driver] ?? [];
-        if (!paths.includes(path)) await this._set('tts.models', { ...models, [driver]: [...paths, path] });
+        if (!paths.includes(path)) await this._set(`${section}.models`, { ...models, [driver]: [...paths, path] });
     }
 
     /**
-     * Removes the file of a voice model of a TTS driver from its list (the file stays).
+     * Removes the file of a model of a driver from its list (the file stays).
+     * @param {SpeechSection} section
      * @param {string} driver
      * @param {string} path
      */
-    async removeModel(driver, path) {
-        const models = this.get().tts.models;
+    async removeModel(section, driver, path) {
+        const models = this.get()[section].models;
         const paths = (models[driver] ?? []).filter(item => item !== path);
         const others = SpeechSettings._without(models, driver);
-        await this._set('tts.models', paths.length ? { ...others, [driver]: paths } : others);
+        await this._set(`${section}.models`, paths.length ? { ...others, [driver]: paths } : others);
     }
 
     /**
@@ -259,14 +281,49 @@ export class SpeechSettings {
             .map(server => ({ name: server.name.trim(), url: server.url }));
         const known = new Set([...PRESET_DRIVERS[section].map(driver => driver.id), ...servers.map(server => EXTERNAL + server.name)]);
         const drivers = (config.get(`${section}.drivers`) ?? []).filter(id => id !== 'system' && known.has(id));
-        const driver = String(config.get(`${section}.driver`) ?? 'system');
+        const driver = String(config.get(`${section}.driver`) ?? '');
         return {
+            models: listsOf(config.get(`${section}.models`)),
             enabled: config.get(`${section}.enabled`) === true,
             volume: clamp(config.get(`${section}.volume`), range[0], range[1], 100),
-            driver: drivers.includes(driver) ? driver : 'system',
+            driver: drivers.includes(driver) ? driver : SpeechSettings._fallback(section, drivers),
             drivers,
             servers,
         };
+    }
+
+    /**
+     * @param {vscode.WorkspaceConfiguration} config
+     * @returns {SectionSettings & { active: string[] }} the settings of TTS with its active drivers: those
+     *   of `tts.activeDrivers` that are offered — before them, the one of `tts.driver` —, System when none
+     */
+    _tts(config) {
+        const section = this._section('tts', config);
+        const offered = new Set(['system', ...section.drivers]);
+        const kept = config.inspect('tts.activeDrivers')?.globalValue;
+        const wanted = Array.isArray(kept) ? kept.map(String) : [String(config.get('tts.driver') ?? 'system')];
+        const active = [...new Set(wanted.filter(id => offered.has(id)))];
+        if (!active.length) active.push('system');
+        return { ...section, active, driver: active[0] };
+    }
+
+    /**
+     * @param {string[]} ids the drivers to speak together (those not offered are left out; none: System)
+     */
+    async _setActive(ids) {
+        const offered = new Set(this.drivers('tts').filter(driver => driver.enabled).map(driver => driver.id));
+        const active = [...new Set(ids.filter(id => offered.has(id)))];
+        await this._set('tts.activeDrivers', active.length ? active : ['system']);
+    }
+
+    /**
+     * @param {SpeechSection} section
+     * @param {string[]} drivers offered
+     * @returns {string} the driver in use when the one chosen is not offered: TTS System, STT the first
+     *   offered ('' : none)
+     */
+    static _fallback(section, drivers) {
+        return section === 'tts' ? 'system' : drivers[0] ?? '';
     }
 
     /**

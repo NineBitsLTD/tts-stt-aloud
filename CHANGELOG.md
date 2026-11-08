@@ -2,6 +2,16 @@
 
 All notable changes to the "tts-stt-md-aloud" extension are documented in this file.
 
+## [1.3.0]
+
+- Speech recognition: the Whisper driver recognizes speech offline through sherpa-onnx (the native module of Piper)
+  - Whisper models under the Whisper driver (Add model): a Whisper model of sherpa-onnx chosen on the disk (its encoder or decoder, the other and its tokens next to it), or one downloaded from the int8 models of the author of sherpa-onnx (tiny … large-v3, turbo, distil, English-only .en), kept in `ttsSttMdAloud.stt.models`
+  - The model and the language of recognition in the STT section (`ttsSttMdAloud.stt.model`, `ttsSttMdAloud.stt.language`): Auto, as VS Code, or a language the model knows
+  - The microphone test shows the recognized text and its language (recognized while the recording plays); `stt.record()` for extensions returns the text too
+- The models of Piper and Whisper share one store (the list, the dialog, the install with progress and cancel, the removal)
+- Several TTS drivers at once: **Drivers** is a drop-down with check boxes (`ttsSttMdAloud.tts.activeDrivers`, replacing `tts.driver`, which is read until it is set); the voices of the checked drivers are in one list with their drivers, Auto takes a checked voice first, then the best by quality (Enhanced / Premium system voices, Piper, other system voices), each phrase is spoken by the driver of its voice; voices are keyed `<driver>:<name>` (the voice tested, the voice of the preview, the API)
+- STT has no System driver any more (it recognized nothing: VS Code may not use the speech recognition of macOS); Whisper is offered from the start (`ttsSttMdAloud.stt.drivers` defaults to it), the driver in use is the one chosen, else the first offered
+
 ## [1.2.0]
 
 - Piper speaks, offline: its voices are the voice models added in the side bar (picked by Auto, checked, tested, used by the preview and other extensions like system voices)

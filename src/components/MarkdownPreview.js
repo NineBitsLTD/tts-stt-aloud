@@ -91,8 +91,8 @@ export class MarkdownPreview {
                 rate: tts.rate,
                 enabled: tts.enabled,
                 volume: tts.volume,
-                driver: tts.driver,
-                checked: tts.voices[tts.driver] ?? [],
+                drivers: tts.active.join(','),
+                checked: tts.active.flatMap(driver => (tts.voices[driver] ?? []).map(name => `${driver}:${name}`)),
             },
         });
     }

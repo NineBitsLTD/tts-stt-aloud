@@ -1,27 +1,16 @@
-import { createReadStream, createWriteStream } from 'node:fs';
-import { appendFile, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import * as vscode from 'vscode';
+import { appendFile, readFile, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { encodeOnnxMetadata, readOnnxMetadata } from '../utils/readOnnxMetadata';
+import { copy, download, exists, ModelStore } from './ModelStore';
 
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
+/** @typedef {import('./ModelStore').StoredModel} PiperModel a voice model; lang: of its config (`ru_RU`), else the voice of espeak (`ru`); ready: prepared for sherpa-onnx — its metadata and `tokens.txt` */
 
 /** The voices of Piper, published by its authors. */
 const REPOSITORY = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/';
 const CATALOG = `${REPOSITORY}voices.json`;
-const DRIVER = 'piper';
 
 /**
- * @typedef {object} PiperModel a voice model in the list of the settings
- * @property {string} path of its `.onnx` file
- * @property {string} name the file name without `.onnx`
- * @property {string} lang its language (`ru_RU`, else the voice of espeak: `ru`; '' : unknown)
- * @property {boolean} downloaded whether it was downloaded into the storage of the extension
- * @property {boolean} exists whether the file is there
- * @property {number} size bytes
- * @property {boolean} ready whether it is prepared for sherpa-onnx: its metadata and `tokens.txt`
- *
  * @typedef {object} PiperVoice a voice of the catalog
  * @property {string} key `ru_RU-irina-medium`
  * @property {string} lang `ru_RU`
@@ -29,18 +18,7 @@ const DRIVER = 'piper';
  * @property {string} quality x_low, low, medium, high
  * @property {number} size bytes of the model
  * @property {boolean} added whether it is in the list already
- *
- * @typedef {{ signal: AbortSignal, onBytes: (count: number) => void, transform?: (part: string) => Promise<void> }} SaveOptions
- * @typedef {{ size: number, save: (target: string, options: SaveOptions) => Promise<void> }} VoiceSource a file of a
- *   voice to install: its size and how it is written to the storage (downloaded, copied)
  */
-
-/** The bytes at the end of an `.onnx` file read for its metadata (ONNX writes them last). */
-const META_TAIL = 4096;
-/** ONNX ModelProto.metadata_props: field 14, length-delimited; StringStringEntryProto key 1, value 2. */
-const META_TAG = 0x72;
-const KEY_TAG = 0x0a;
-const VALUE_TAG = 0x12;
 
 /**
  * @param {string} path of an `.onnx` model
@@ -57,37 +35,13 @@ async function readConfig(path) {
 
 /**
  * The metadata sherpa-onnx needs in a Piper model (`model_type`: vits, `comment`: piper, language,
- * voice, has_espeak, n_speakers, sample_rate), written by its conversion script at the end of the
- * model: the entries of ModelProto.metadata_props in the last bytes of the file.
+ * voice, has_espeak, n_speakers, sample_rate), written by its conversion script at the end of the model.
  * @param {string} path of an `.onnx` model
  * @returns {Promise<Record<string, string> | null>} null: not prepared for sherpa-onnx
  */
 export async function readSherpaMeta(path) {
-    let tail;
-    try {
-        const file = await open(path, 'r');
-        try {
-            const { size } = await file.stat();
-            tail = Buffer.alloc(Math.min(size, META_TAIL));
-            await file.read(tail, 0, tail.length, size - tail.length);
-        } finally {
-            await file.close();
-        }
-    } catch {
-        return null;
-    }
-    // An entry: 0x72 <length> 0x0a <key length> <key> 0x12 <value length> <value> (short strings)
-    const meta = {};
-    for (let index = tail.indexOf(META_TAG); index >= 0 && index + 4 < tail.length; index = tail.indexOf(META_TAG, index + 1)) {
-        const length = tail[index + 1];
-        const keyLength = tail[index + 3];
-        const valueAt = index + 4 + keyLength;
-        if (length >= 0x80 || tail[index + 2] !== KEY_TAG || keyLength >= 0x80 || tail[valueAt] !== VALUE_TAG) continue;
-        const valueLength = tail[valueAt + 1];
-        if (valueLength >= 0x80 || 2 + keyLength + 2 + valueLength !== length || valueAt + 2 + valueLength > tail.length) continue;
-        meta[tail.toString('utf8', index + 4, valueAt)] = tail.toString('utf8', valueAt + 2, valueAt + 2 + valueLength);
-    }
-    return meta.model_type && meta.comment === 'piper' ? meta : null;
+    const meta = await readOnnxMetadata(path);
+    return meta?.model_type && meta.comment === 'piper' ? meta : null;
 }
 
 /**
@@ -107,25 +61,6 @@ export function sherpaMetaOf(config) {
 }
 
 /**
- * @param {Record<string, string | number>} meta
- * @returns {Buffer} entries of ModelProto.metadata_props; appended to a model they are its metadata,
- *   as `onnx.save` of the script of sherpa-onnx writes them (byte for byte)
- */
-export function encodeMeta(meta) {
-    const varint = (value) => {
-        const bytes = [];
-        do {
-            bytes.push((value & 0x7f) | (value > 0x7f ? 0x80 : 0));
-            value >>>= 7;
-        } while (value);
-        return Buffer.from(bytes);
-    };
-    const field = (tag, bytes) => Buffer.concat([Buffer.from([tag]), varint(bytes.length), bytes]);
-    return Buffer.concat(Object.entries(meta).map(([key, value]) => field(META_TAG,
-        Buffer.concat([field(KEY_TAG, Buffer.from(key)), field(VALUE_TAG, Buffer.from(String(value)))]))));
-}
-
-/**
  * @param {any} config of a Piper model
  * @returns {string} its `tokens.txt` for sherpa-onnx: a phoneme and its id a line, by id
  */
@@ -133,50 +68,6 @@ export function tokensOf(config) {
     return Object.entries(config?.phoneme_id_map ?? {})
         .sort(([, a], [, b]) => a[0] - b[0])
         .map(([phoneme, ids]) => `${phoneme} ${ids[0]}\n`).join('');
-}
-
-/**
- * @param {string} path
- * @returns {Promise<boolean>} whether a file or folder is there
- */
-async function exists(path) {
-    return !!(await stat(path).catch(() => null));
-}
-
-/**
- * Writes a stream to a file (to `<target>.part`, renamed when complete).
- * @param {NodeJS.ReadableStream} source
- * @param {string} target
- * @param {SaveOptions & { size?: number }} options size: checked when known; transform: changes the
- *   file before it is renamed
- */
-async function save(source, target, { signal, size, onBytes, transform }) {
-    const part = `${target}.part`;
-    let received = 0;
-    const count = async function* (chunks) {
-        for await (const chunk of chunks) {
-            received += chunk.length;
-            onBytes(chunk.length);
-            yield chunk;
-        }
-    };
-    await mkdir(dirname(target), { recursive: true });
-    await pipeline(source, count, createWriteStream(part), { signal });
-    if (size && received !== size) throw new Error(`${basename(target)} came incomplete (${received} of ${size} bytes)`);
-    if (transform) await transform(part);
-    await rename(part, target);
-}
-
-/**
- * Downloads a file.
- * @param {string} url
- * @param {string} target
- * @param {SaveOptions & { size?: number }} options
- */
-async function download(url, target, options) {
-    const response = await fetch(url, { signal: options.signal });
-    if (!response.ok || !response.body) throw new Error(`${response.status} ${response.statusText}: ${url}`);
-    await save(Readable.fromWeb(response.body), target, options);
 }
 
 /**
@@ -190,47 +81,30 @@ async function download(url, target, options) {
  * used where it is. Removing a model of the storage deletes its folder; a model used where it is
  * only leaves the list.
  */
-export class PiperModels {
+export class PiperModels extends ModelStore {
 
     /**
-     * @param {vscode.ExtensionContext} context
+     * @param {import('vscode').ExtensionContext} context
      * @param {SpeechSettings} settings
      */
     constructor(context, settings) {
-        this._settings = settings;
-        this.folder = join(context.globalStorageUri.fsPath, DRIVER);
+        super(context, settings, { section: 'tts', driver: 'piper', label: 'Piper voice' });
         /** @type {Promise<Record<string, any>> | null} the catalog, loaded once a session */
         this._catalog = null;
-        /** @type {Map<string, 'downloading' | 'preparing'>} the voices being installed into the storage */
-        this.pending = new Map();
-        /** @type {vscode.EventEmitter<void>} */
-        this._changed = new vscode.EventEmitter();
-        /** Installing a voice began or ended. */
-        this.onDidChange = this._changed.event;
-    }
-
-    dispose() {
-        this._changed.dispose();
     }
 
     /**
-     * @returns {Promise<PiperModel[]>} the models of the settings with what their files tell
+     * @param {string} path
+     * @returns {Promise<PiperModel>}
      */
-    async list() {
-        const paths = this._settings.get().tts.models[DRIVER] ?? [];
-        return Promise.all(paths.map(async (path) => {
-            const info = await stat(path).catch(() => null);
-            const meta = info ? await readSherpaMeta(path) : null;
-            return {
-                path,
-                name: basename(path).replace(/\.onnx$/i, ''),
-                lang: (await readConfig(path))?.lang || meta?.voice || '',
-                downloaded: this._isDownloaded(path),
-                exists: !!info?.isFile(),
-                size: info?.size ?? 0,
-                ready: !!meta && await exists(join(dirname(path), 'tokens.txt')),
-            };
-        }));
+    async describe(path) {
+        const model = await super.describe(path);
+        const meta = model.exists ? await readSherpaMeta(path) : null;
+        return {
+            ...model,
+            lang: (await readConfig(path))?.lang || meta?.voice || '',
+            ready: !!meta && await exists(join(dirname(path), 'tokens.txt')),
+        };
     }
 
     /**
@@ -248,7 +122,7 @@ export class PiperModels {
             this._catalog = null;
             throw new Error(`The list of Piper voices could not be loaded: ${error?.message || error}`);
         }
-        const added = new Set((this._settings.get().tts.models[DRIVER] ?? []).map(path => basename(path).replace(/\.onnx$/i, '')));
+        const added = new Set(this.paths().map(path => this.nameOf(path)));
         return Object.values(voices).map((voice) => {
             const language = voice.language ?? {};
             const model = Object.entries(voice.files ?? {}).find(([path]) => path.endsWith('.onnx'));
@@ -264,18 +138,9 @@ export class PiperModels {
     }
 
     /**
-     * @returns {Promise<string>} the `.onnx` file chosen in the open dialog ('' : none)
-     */
-    async browse() {
-        const [uri] = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { 'Piper voice model': ['onnx'] }, openLabel: 'Choose' }) ?? [];
-        return uri?.fsPath ?? '';
-    }
-
-    /**
      * Adds a model chosen on the disk: one prepared for sherpa-onnx (its metadata, `tokens.txt` next
-     * to it) where it is; else, with
-     * its config `<model>.onnx.json` next to it, a copy prepared in the storage (it begins here, the
-     * model is added when it is ready).
+     * to it) where it is; else, with its config `<model>.onnx.json` next to it, a copy prepared in the
+     * storage (it begins here, the model is added when it is ready).
      * @param {string} path
      * @returns {Promise<string>} why it is not added ('' : added, or its copy began)
      */
@@ -283,26 +148,26 @@ export class PiperModels {
         if (!/\.onnx$/i.test(path)) return 'Choose an .onnx file: a Piper voice model.';
         const info = await stat(path).catch(() => null);
         if (!info?.isFile()) return `There is no file ${path}.`;
-        if ((this._settings.get().tts.models[DRIVER] ?? []).includes(path)) return 'This model is in the list already.';
+        if (this.paths().includes(path)) return 'This model is in the list already.';
         if (await readSherpaMeta(path) && await exists(join(dirname(path), 'tokens.txt'))) {
-            await this._settings.addModel(DRIVER, path);
+            await this._settings.addModel(this.section, this.driver, path);
             return '';
         }
         const config = await stat(`${path}.json`).catch(() => null);
         if (!config?.isFile()) return `${basename(path)} cannot be prepared for sherpa-onnx: its config ${basename(path)}.json is not next to it.`;
-        const name = basename(path).replace(/\.onnx$/i, '');
-        if (this.pending.has(name) || await exists(join(this.folder, name))) return `There is a model named ${name} in the storage of the extension already.`;
-        this._install(name, 'preparing', {
-            config: { size: config.size, save: (target, options) => save(createReadStream(`${path}.json`), target, { ...options, size: config.size }) },
-            model: { size: info.size, save: (target, options) => save(createReadStream(path), target, { ...options, size: info.size }) },
-        });
+        const name = this.nameOf(path);
+        const refused = await this.refuseName(name);
+        if (refused) return refused;
+        this.install(name, 'preparing', config.size + info.size, (folder, options) => this._prepare(folder, name, {
+            config: target => copy(`${path}.json`, target, { ...options, size: config.size }),
+            model: (target, transform) => copy(path, target, { ...options, size: info.size, transform }),
+        }));
         return '';
     }
 
     /**
      * Begins downloading a voice of the catalog (its model and config) and preparing it for
-     * sherpa-onnx; the model is added when it is ready. The progress is in a notification, which
-     * can cancel it.
+     * sherpa-onnx; the model is added when it is ready.
      * @param {string} key
      * @returns {Promise<string>} why it does not begin ('' : it began)
      */
@@ -316,103 +181,32 @@ export class PiperModels {
         const [configPath, config] = remote('.onnx.json') ?? [];
         const [modelPath, model] = remote('.onnx') ?? [];
         if (!configPath || !modelPath) return `The catalog gives no model for ${key}.`;
-        const source = (path, file) => {
-            const size = Number(file?.size_bytes) || 0;
-            return { size, save: (target, options) => download(REPOSITORY + path.split('/').map(encodeURIComponent).join('/'), target, { ...options, size }) };
-        };
-        this._install(key, 'downloading', { config: source(configPath, config), model: source(modelPath, model) });
+        const url = path => REPOSITORY + path.split('/').map(encodeURIComponent).join('/');
+        const size = file => Number(file?.size_bytes) || 0;
+        this.install(key, 'downloading', size(config) + size(model), (folder, options) => this._prepare(folder, key, {
+            config: target => download(url(configPath), target, { ...options, size: size(config) }),
+            model: (target, transform) => download(url(modelPath), target, { ...options, size: size(model), transform }),
+        }));
         return '';
     }
 
     /**
-     * Removes a model from the list after asking; one of the storage with its folder.
-     * @param {string} path
-     */
-    async remove(path) {
-        const downloaded = this._isDownloaded(path);
-        const name = basename(path);
-        const answer = await vscode.window.showWarningMessage(`Remove the Piper voice model ${name}?`, {
-            modal: true,
-            detail: downloaded ? 'Its files in the storage of the extension are deleted.' : 'It leaves the list; the file stays on the disk.',
-        }, 'Remove');
-        if (answer !== 'Remove') return;
-        await this._settings.removeModel(DRIVER, path);
-        if (!downloaded) return;
-        // A voice has its own folder (piper/<voice>/); one downloaded before had its files in piper/
-        if (dirname(path) !== this.folder) await rm(dirname(path), { recursive: true, force: true });
-        else await Promise.all([rm(path, { force: true }), rm(`${path}.json`, { force: true })]);
-    }
-
-    /**
-     * Installs a voice into the storage in the background, with a notification that can cancel it;
-     * the model is added when it is ready, what went wrong is shown.
-     * @param {string} name of the voice (its folder and files)
-     * @param {'downloading' | 'preparing'} action
-     * @param {{ config: VoiceSource, model: VoiceSource }} sources
-     */
-    _install(name, action, sources) {
-        this.pending.set(name, action);
-        this._changed.fire();
-        const title = action === 'downloading' ? `Downloading the Piper voice ${name}` : `Preparing the Piper voice ${name} for sherpa-onnx`;
-        vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title, cancellable: true },
-            (progress, token) => this._prepare(name, sources, progress, token))
-            .then(async (path) => {
-                if (path) await this._settings.addModel(DRIVER, path);
-            }, (error) => {
-                if (error?.name !== 'AbortError') vscode.window.showErrorMessage(`The Piper voice ${name} could not be ${action === 'downloading' ? 'downloaded' : 'prepared'}: ${error?.message || error}`);
-            })
-            .finally(() => {
-                this.pending.delete(name);
-                this._changed.fire();
-            });
-    }
-
-    /**
-     * Writes a voice into its folder of the storage and prepares it for sherpa-onnx: `tokens.txt`
-     * from its config, the metadata appended to the model when it has none.
+     * Writes a voice into its folder and prepares it for sherpa-onnx: `tokens.txt` from its config,
+     * the metadata appended to the model when it has none.
+     * @param {string} folder
      * @param {string} name
-     * @param {{ config: VoiceSource, model: VoiceSource }} sources
-     * @param {vscode.Progress<{ message?: string, increment?: number }>} progress
-     * @param {vscode.CancellationToken} token
+     * @param {{ config: (target: string) => Promise<void>, model: (target: string, transform: (part: string) => Promise<void>) => Promise<void> }} write
      * @returns {Promise<string>} the path of the model
      */
-    async _prepare(name, { config, model }, progress, token) {
-        const abort = new AbortController();
-        token.onCancellationRequested(() => abort.abort());
-        const { signal } = abort;
-        const folder = join(this.folder, name);
-        try {
-            const total = config.size + model.size || 1;
-            let done = 0;
-            const onBytes = (count) => {
-                done += count;
-                progress.report({ increment: (count / total) * 100, message: `${Math.round((done / total) * 100)}% of ${(total / 2 ** 20).toFixed(0)} MB` });
-            };
-            const configPath = join(folder, `${name}.onnx.json`);
-            const modelPath = join(folder, `${name}.onnx`);
-            await config.save(configPath, { signal, onBytes });
-            const settings = JSON.parse(await readFile(configPath, 'utf8'));
-            await writeFile(join(folder, 'tokens.txt'), tokensOf(settings));
-            await model.save(modelPath, {
-                signal,
-                onBytes,
-                transform: async (part) => {
-                    if (!(await readSherpaMeta(part))) await appendFile(part, encodeMeta(sherpaMetaOf(settings)));
-                },
-            });
-            return modelPath;
-        } catch (error) {
-            await rm(folder, { recursive: true, force: true });
-            throw token.isCancellationRequested ? Object.assign(new Error('Cancelled'), { name: 'AbortError' }) : error;
-        }
-    }
-
-    /**
-     * @param {string} path
-     * @returns {boolean} whether a model is in the storage of the extension (downloaded)
-     */
-    _isDownloaded(path) {
-        const inside = relative(this.folder, path);
-        return !!inside && !inside.startsWith('..') && !isAbsolute(inside) && inside.split(sep).length <= 2;
+    async _prepare(folder, name, write) {
+        const configPath = join(folder, `${name}.onnx.json`);
+        const modelPath = join(folder, `${name}.onnx`);
+        await write.config(configPath);
+        const config = JSON.parse(await readFile(configPath, 'utf8'));
+        await writeFile(join(folder, 'tokens.txt'), tokensOf(config));
+        await write.model(modelPath, async (part) => {
+            if (!(await readSherpaMeta(part))) await appendFile(part, encodeOnnxMetadata(sherpaMetaOf(config)));
+        });
+        return modelPath;
     }
 }

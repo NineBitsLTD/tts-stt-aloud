@@ -4,7 +4,7 @@ import { createNonce } from '../utils/createNonce';
 /** @typedef {import('./SpeechSettings').SpeechSettings} SpeechSettings */
 /** @typedef {import('./TextToSpeech').TextToSpeech} TextToSpeech */
 /** @typedef {import('./SpeechToText').SpeechToText} SpeechToText */
-/** @typedef {import('./PiperModels').PiperModels} PiperModels */
+/** @typedef {import('./ModelStore').ModelStore} ModelStore */
 
 /**
  * The side bar of the speech settings (the speaker of the activity bar, the webview view
@@ -12,7 +12,8 @@ import { createNonce } from '../utils/createNonce';
  * sound, the driver, the drivers offered (Piper, Silero, external servers), the voices checked and
  * the voice tested —, STT — on / off (whether other extensions may use the microphone), the gain
  * and the level of the microphone, its drivers, the test of the microphone (recorded, played); the
- * voice models of Piper while it is offered (`PiperModels`: chosen on the disk or downloaded, prepared for sherpa-onnx). The
+ * models of Piper and Whisper while they are offered (`PiperModels`, `WhisperModels`: chosen on the disk
+ * or downloaded), the model and language Whisper recognizes with, the text recognized by the test. The
  * settings are those of VS Code (`SpeechSettings`), so a change made elsewhere shows here.
  * @implements {vscode.WebviewViewProvider}
  */
@@ -25,17 +26,17 @@ export class SpeechPanel {
      * @param {SpeechSettings} settings
      * @param {TextToSpeech} tts
      * @param {SpeechToText} stt
-     * @param {PiperModels} piper
+     * @param {Record<string, ModelStore>} models the models of the drivers that have them, by driver
      */
-    constructor(context, settings, tts, stt, piper) {
+    constructor(context, settings, tts, stt, models) {
         this._context = context;
         this._settings = settings;
         this._tts = tts;
         this._stt = stt;
-        this._piper = piper;
+        this._models = models;
         /** @type {vscode.WebviewView | null} */
         this._view = null;
-        /** the TTS driver whose voices the view shows */
+        /** the active TTS drivers whose voices the view shows */
         this._voicesOf = '';
     }
 
@@ -49,7 +50,10 @@ export class SpeechPanel {
             this._tts.onLevels(({ levels, interval }) => this._post({ type: 'level', section: 'tts', levels, interval })),
             this._stt.onLevel(level => this._post({ type: 'level', section: 'stt', ...level })),
             this._stt.onState(({ state, owner, limits }) => this._post({ type: 'micState', state, test: owner === 'test', limits })),
-            this._piper.onDidChange(() => this._postState()),
+            ...Object.values(this._models).map(store => store.onDidChange(() => {
+                this._postState();
+                if (store.section === 'tts') this._postVoices(false);
+            })),
         );
     }
 
@@ -75,6 +79,7 @@ export class SpeechPanel {
     async _onMessage(message) {
         const reply = (result, error = undefined) => this._view?.webview.postMessage({ type: 'hostReply', requestId: message.requestId, result, error });
         const section = message?.section === 'stt' ? 'stt' : 'tts';
+        const store = this._models[String(message?.driver ?? '')];
         switch (message?.type) {
             case 'ready':
                 await this._postState();
@@ -86,9 +91,12 @@ export class SpeechPanel {
             case 'driverEnabled':
                 await this._settings.setDriverEnabled(section, String(message.id), !!message.enabled);
                 break;
-            case 'voiceChecked':
-                await this._settings.setVoiceChecked(this._settings.get().tts.driver, String(message.name), !!message.checked);
+            case 'voiceChecked': {
+                const key = String(message.key ?? '');
+                const driver = this._settings.get().tts.active.find(id => key.startsWith(`${id}:`));
+                if (driver) await this._settings.setVoiceChecked(driver, key.slice(driver.length + 1), !!message.checked);
                 break;
+            }
             case 'addServer':
                 reply(await this._settings.addServer(section, message.server ?? {}));
                 break;
@@ -107,24 +115,24 @@ export class SpeechPanel {
                 else this._tts.stop('test');
                 break;
             case 'browseModel':
-                reply(await this._piper.browse());
+                reply(await store?.browse() ?? '');
                 break;
             case 'modelCatalog':
                 try {
-                    reply(await this._piper.catalog());
+                    reply(await store.catalog());
                 } catch (error) {
                     reply(undefined, String(error?.message || error));
                 }
                 break;
             case 'addModel':
                 try {
-                    reply(message.key ? await this._piper.download(String(message.key)) : await this._piper.addFile(String(message.path ?? '')));
+                    reply(message.key ? await store.download(String(message.key)) : await store.addFile(String(message.path ?? '')));
                 } catch (error) {
                     reply(String(error?.message || error));
                 }
                 break;
             case 'removeModel':
-                await this._piper.remove(String(message.path ?? ''));
+                await store?.remove(String(message.path ?? ''));
                 break;
         }
     }
@@ -143,31 +151,36 @@ export class SpeechPanel {
     /** The settings changed: the view follows, the voices when the driver changed. */
     _onSettings() {
         this._postState();
-        if (this._settings.get().tts.driver !== this._voicesOf) this._postVoices(false);
+        if (this._settings.get().tts.active.join(',') !== this._voicesOf) this._postVoices(false);
     }
 
     /**
-     * Records speech and plays it (the speech being spoken stops: it would be recorded).
-     * @returns {Promise<{ heard: boolean, duration: number, ended: string, text: string | null }>}
-     *   text: null — recognition is not connected yet
+     * Records speech, plays it and recognizes it (the speech being spoken stops: it would be recorded).
+     * @returns {Promise<{ heard: boolean, duration: number, ended: string, text: string | null, lang: string, note: string }>}
+     *   text: null — not recognized (note: why)
      */
     async _testMicrophone() {
         this._tts.stop();
-        const { wav, duration, ended } = await this._stt.test(this._settings.get().tts.volume / 100);
-        return { heard: !!wav, duration, ended, text: null };
+        const { wav, duration, ended, text, lang, error } = await this._stt.test(this._settings.get().tts.volume / 100);
+        return { heard: !!wav, duration, ended, text, lang, note: error ?? '' };
     }
 
     async _postState() {
         const settings = this._settings.get();
-        const piper = await this._piper.list();
+        const models = { tts: {}, stt: {} };
+        for (const store of Object.values(this._models)) {
+            models[store.section][store.driver] = { models: await store.list(), pending: [...store.pending].map(([name, action]) => ({ name, action })) };
+        }
+        const recognition = await this._stt.recognition();
         this._post({
             type: 'state',
             settings,
             drivers: { tts: this._settings.drivers('tts'), stt: this._settings.drivers('stt') },
-            models: { tts: { piper: { models: piper, pending: [...this._piper.pending].map(([name, action]) => ({ name, action })) } } },
+            models,
+            uiLanguage: vscode.env.language,
             notes: {
-                tts: (await this._tts.driver()).message,
-                stt: settings.stt.enabled ? 'Other extensions may use the microphone.' : 'Other extensions may not use the microphone (the test works anyway).',
+                tts: (await this._tts.status()).message,
+                stt: [settings.stt.enabled ? 'Other extensions may use the microphone.' : 'Other extensions may not use the microphone (the test works anyway).', recognition.message].filter(Boolean).join(' '),
             },
         });
     }
@@ -176,10 +189,10 @@ export class SpeechPanel {
      * @param {boolean} refresh ask the system for its voices again
      */
     async _postVoices(refresh) {
-        const driver = this._settings.get().tts.driver;
-        this._voicesOf = driver;
+        const drivers = this._settings.get().tts.active.join(',');
+        this._voicesOf = drivers;
         const voices = await this._tts.voices({ refresh });
-        this._post({ type: 'voices', driver, voices });
+        this._post({ type: 'voices', drivers, voices });
     }
 
     /**

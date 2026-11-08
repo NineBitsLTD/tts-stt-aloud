@@ -1,6 +1,6 @@
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { EnglishReading } from '../utils/EnglishReading';
+import { loadRuntime } from '../utils/loadRuntime';
 import { isEnglish, normalizeRussian } from '../utils/normalizeRussian';
 import { speaksLanguage } from '../utils/pickVoice';
 import { WavAudio } from '../utils/WavAudio';
@@ -92,7 +92,7 @@ export class PiperSpeech {
      * @param {PiperModels} models
      */
     constructor(context, models) {
-        this._root = join(context.extensionUri.fsPath, 'dist');
+        this._extension = context.extensionUri.fsPath;
         this._models = models;
         this._reader = new EnglishReading(join(context.extensionUri.fsPath, 'resources', 'cmudict', 'cmudict.dict.gz'));
         /** @type {{ addon: any, phonemizer: any } | null | undefined} undefined: not loaded yet; null: missing */
@@ -184,8 +184,7 @@ export class PiperSpeech {
     _load() {
         if (this._runtime !== undefined) return this._runtime;
         try {
-            const load = createRequire(join(this._root, 'extension.cjs'));
-            this._runtime = { addon: load('./native/sherpa-onnx.node'), phonemizer: load('./piper-phonemize/index.js') };
+            this._runtime = { addon: loadRuntime(this._extension, 'native/sherpa-onnx.node'), phonemizer: loadRuntime(this._extension, 'piper-phonemize/index.js') };
         } catch (error) {
             this._runtime = null;
             this._missing = `Piper cannot speak in this build for ${process.platform}-${process.arch}: sherpa-onnx or piper-phonemize is missing (${error?.message || error}).`;
