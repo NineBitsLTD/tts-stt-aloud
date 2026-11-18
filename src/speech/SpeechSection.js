@@ -147,7 +147,8 @@ class LevelMeter {
 
 /**
  * A section of the speech side bar (TTS or STT): the title with the on / off switch, the volume
- * (TTS: of the speech, a share of the computer's; STT: the gain of the microphone), the speed
+ * (TTS: of the speech, a share of the computer's; STT: the input volume of the microphone in the
+ * system — macOS, Linux — and the gain of the microphone), the speed
  * (TTS), the level meter, the driver (TTS: the drivers speaking together, `DriverPicker`), "Add driver" with the drivers offered (the presets, the
  * external servers added by "Add External", removed by ×; under a driver with models — Piper,
  * Whisper — its models and "Add model"), the voices and their test (TTS), the model and the language
@@ -194,6 +195,12 @@ export class SpeechSection {
             createElement('label', { className: 'speech-switch' }, this._switch, createElement('span', { className: 'speech-switch__track' })));
 
         this._volume = this._range({ ...volume, min: 0, step: 5, format: value => `${value}%`, key: 'volume' });
+        /** @type {{ row: HTMLElement, set: (value: number) => void, input: HTMLInputElement, output: HTMLElement } | null} the input volume of the microphone in the system (STT), shown when the host can set it */
+        this._systemMic = name === 'stt' ? this._range({
+            label: t('Mic'), icon: 'mic', title: '', min: 0, max: 100, step: 1, format: value => `${value}%`, key: 'systemMic',
+            onChange: value => this._host.send('systemMicVolume', { value }),
+        }) : null;
+        if (this._systemMic) this._systemMic.row.hidden = true;
         this._meter = new LevelMeter();
         this._driverSelect = createElement('select', { className: 'speech-row__select', title: t('Driver of {0}', title) });
         this._driverSelect.addEventListener('change', () => this._update('driver', this._driverSelect.value));
@@ -237,6 +244,7 @@ export class SpeechSection {
 
         const tts = name === 'tts';
         const rows = [
+            ...(this._systemMic ? [this._systemMic.row] : []),
             this._volume.row,
             ...(tts ? [this._speedRow()] : []),
             SpeechSection._row(createIcon('pulse'), t('Level'), this._meter.element),
@@ -344,21 +352,42 @@ export class SpeechSection {
 
     /**
      * A slider with its value; the value goes to the host as the slider is let go.
-     * @param {{ label: string, icon: string, title: string, min: number, max: number, step: number, format: (value: number) => string, key: string }} options
-     * @returns {{ row: HTMLElement, set: (value: number) => void }}
+     * @param {{ label: string, icon: string, title: string, min: number, max: number, step: number, format: (value: number) => string, key: string, onChange?: (value: number) => void }} options
+     *   onChange: sends the value (else it is the setting `key` of the section)
+     * @returns {{ row: HTMLElement, set: (value: number) => void, input: HTMLInputElement, output: HTMLElement }}
      */
-    _range({ label, icon, title, min, max, step, format, key }) {
+    _range({ label, icon, title, min, max, step, format, key, onChange = value => this._update(key, value) }) {
         const input = createElement('input', { className: 'speech-row__range', type: 'range', min: String(min), max: String(max), step: String(step), title });
         const output = createElement('output', { className: 'speech-row__value' });
         input.addEventListener('input', () => { output.textContent = format(Number(input.value)); });
-        input.addEventListener('change', () => this._update(key, Number(input.value)));
+        input.addEventListener('change', () => onChange(Number(input.value)));
         return {
+            input,
+            output,
             row: SpeechSection._row(createIcon(icon), label, input, output),
             set: (value) => {
                 input.value = String(value);
                 output.textContent = format(Number(value));
             },
         };
+    }
+
+    /**
+     * Shows the input volume of the microphone in the system (STT): hidden where the host cannot set it,
+     * disabled with why when it cannot be told.
+     * @param {{ supported: boolean, volume?: number | null, tool?: string, note?: string }} message
+     */
+    setSystemMic({ supported, volume = null, tool = '', note = '' }) {
+        const mic = this._systemMic;
+        if (!mic) return;
+        mic.row.hidden = !supported;
+        const known = typeof volume === 'number';
+        mic.input.disabled = !known;
+        if (known) {
+            mic.set(Math.min(100, volume));
+            mic.output.textContent = `${volume}%`;
+        } else mic.output.textContent = '—';
+        mic.row.title = known ? t('Input volume of the default microphone in the system ({0})', tool) : note;
     }
 
     /**

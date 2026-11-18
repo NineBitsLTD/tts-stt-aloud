@@ -2,6 +2,10 @@
 
 All notable changes to the "tts-stt-aloud" extension are documented in this file.
 
+## [2.4.0]
+
+- STT has **Mic**, the input volume of the microphone set in the system, on macOS and Linux (PulseAudio / PipeWire, ALSA): read when the side bar is shown and when VS Code gets the focus back, set as the slider is let go. The gain of the recording is now called **Gain**
+
 ## [2.3.0]
 
 - Silero speaks: Russian, five voices of one model (`v5_6_ru`, 48 kHz), offline, through the same sherpa-onnx as Piper, without Python. **Add driver → Silero → Add voice model** downloads the model (174 MB) or takes its four files from the disk and joins them into one. Its license is shown when it is chosen: CC BY-NC-SA 4.0, non-commercial use only. The stress of the words comes from espeak-ng and may be wrong in some of them; questions are read as statements

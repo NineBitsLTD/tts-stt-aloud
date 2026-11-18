@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { createNonce } from '../utils/createNonce';
 import { exists } from './ModelStore';
+import { SystemMicVolume } from './SystemMicVolume';
 
 const t = vscode.l10n.t;
 
@@ -17,7 +18,7 @@ const t = vscode.l10n.t;
  * `TextPlayer`, the button of `Dictation` —, TTS — on / off, volume, speed, the level of the
  * sound, the driver, the drivers offered (Piper, Silero, external servers), the voices checked and
  * the voice tested —, STT — on / off (whether other extensions may use the microphone), the gain
- * and the level of the microphone, its drivers, the test of the microphone (recorded, played); the
+ * and the level of the microphone, its input volume in the system (`SystemMicVolume`: macOS, Linux), its drivers, the test of the microphone (recorded, played); the
  * models of Piper, Silero and Whisper while they are offered (`PiperModels`, `SileroModels`, `WhisperModels`: chosen on the disk
  * or downloaded), the model and language Whisper recognizes with, the text recognized by the test. The
  * settings are those of VS Code (`SpeechSettings`), so a change made elsewhere shows here.
@@ -49,6 +50,7 @@ export class SpeechPanel {
         this._voicesOf = '';
         /** the models of TTS those voices are of */
         this._voiceModels = '';
+        this._systemMic = new SystemMicVolume();
     }
 
     /**
@@ -62,6 +64,10 @@ export class SpeechPanel {
             this._stt.onLevel(level => this._post({ type: 'level', section: 'stt', ...level })),
             this._stt.onState(({ state, owner, limits }) => this._post({ type: 'micState', state, test: owner === 'test', dictation: owner === this._dictation, limits })),
             this._player.onDidChange(() => this._postPlayer()),
+            // The volume may have been changed in the settings of the system meanwhile
+            vscode.window.onDidChangeWindowState((state) => {
+                if (state.focused) this._postSystemMic();
+            }),
             this._dictation.onDidChange(() => this._postPlayer()),
             ...Object.values(this._models).map(store => store.onDidChange(() => {
                 this._postState();
@@ -103,6 +109,10 @@ export class SpeechPanel {
                 await this._postState();
                 await this._postVoices(true);
                 this._postPlayer();
+                await this._postSystemMic();
+                break;
+            case 'systemMicVolume':
+                if (this._systemMic.supported) this._postSystemMic(await this._systemMic.set(Number(message.value)));
                 break;
             case 'player':
                 this._playerAction(String(message.action), message.value);
@@ -209,6 +219,25 @@ export class SpeechPanel {
             source: () => this._player.setSource(/** @type {any} */ (value)),
         };
         actions[action]?.();
+    }
+
+    /**
+     * Sends the input volume of the microphone in the system while the view is shown.
+     * @param {import('./SystemMicVolume').MicVolume} [known] as it was just read (else it is read now)
+     */
+    async _postSystemMic(known = undefined) {
+        if (!this._view?.visible) return;
+        if (!this._systemMic.supported) {
+            this._post({ type: 'systemMic', supported: false });
+            return;
+        }
+        const { volume, tool, reason, error } = known ?? await this._systemMic.get();
+        const notes = {
+            'no-volume': t('The microphone chosen in the system has no input volume.'),
+            'no-tool': t('Install pactl (PulseAudio, PipeWire), wpctl or amixer to set the volume of the microphone in the system.'),
+            failed: t('The volume of the microphone in the system cannot be read: {0}', `${tool}: ${error ?? ''}`),
+        };
+        this._post({ type: 'systemMic', supported: true, volume, tool, note: notes[reason] ?? '' });
     }
 
     _postPlayer() {

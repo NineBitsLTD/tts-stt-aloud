@@ -9,7 +9,8 @@ import { t } from './speech/t';
  * The webview of the speech side bar (`SpeechPanel` on the host): the Player, TTS and STT sections. The host
  * sends the state of the settings (`state`), the voices of the TTS driver (`voices`), the levels of
  * the sound (`level`), what the microphone does (`micState`), the bytes of a model being installed
- * (`modelProgress`) and what went wrong (`status`); the view sends the changes.
+ * (`modelProgress`), the input volume of the microphone in the system (`systemMic`) and what went wrong (`status`); the view
+ * sends the changes.
  */
 const vscode = acquireVsCodeApi();
 const host = new HostRequests(message => vscode.postMessage(message));
@@ -29,7 +30,7 @@ const sections = {
         name: 'stt',
         title: 'STT',
         hint: t('Speech to text'),
-        volume: { label: t('Mic'), icon: 'mic', max: 200, title: t('Gain of the microphone, in % (100: as recorded)') },
+        volume: { label: t('Gain'), icon: 'settings', max: 200, title: t('Gain of the microphone, in % (100: as recorded)') },
         host,
         dialog,
         modelDialog,
@@ -60,6 +61,9 @@ window.addEventListener('message', (event) => {
             break;
         case 'micState':
             sections.stt.setMicState(message);
+            break;
+        case 'systemMic':
+            sections.stt.setSystemMic(message);
             break;
         case 'status':
             section?.setStatus(message.message ?? '');
